@@ -1,4 +1,6 @@
+// src/utils/errorHandler.ts
 import {Prisma} from '@prisma/client'
+import * as Sentry from '@sentry/node'
 import {AxiosError} from 'axios'
 import {NextResponse} from 'next/server'
 
@@ -11,17 +13,17 @@ export interface ErrorHandlerOptions {
 
 export class ErrorHandler {
   /**
-   * Trata erros de forma dinâmica e personalizada.
-   * @param asyncFn Função assíncrona que será envolvida pelo ErrorHandler.
-   * @param options Configurações de contexto e comportamento do erro.
-   * @returns O resultado da função assíncrona ou null em caso de erro.
+   * Gerencia erros de forma centralizada e personalizada.
+   * @param asyncFn Função assíncrona envolvida pelo ErrorHandler.
+   * @param options Configurações opcionais para o tratamento de erro.
+   * @returns O resultado da função assíncrona ou `null` em caso de erro.
    */
   static async handle<T>(
     asyncFn: () => Promise<T>,
     options: ErrorHandlerOptions = {},
   ): Promise<T | NextResponse | null> {
     const {
-      context,
+      context = 'Desconhecido',
       silent = false,
       defaultErrorMessage = 'Ocorreu um erro inesperado.',
       returnHttpResponse = true,
@@ -32,17 +34,17 @@ export class ErrorHandler {
     } catch (error) {
       if (!silent) {
         console.error(
-          `[ErrorHandler] Context: ${context || 'Desconhecido'} - Detalhes do Erro:`,
+          `[ErrorHandler] Context: ${context} - Detalhes do Erro:`,
           error,
         )
       }
 
-      const userFriendlyMessage = ErrorHandler.getFriendlyMessage(
+      const userFriendlyMessage = this.getFriendlyMessage(
         error,
         defaultErrorMessage,
       )
 
-      ErrorHandler.sendToMonitoring(error, context)
+      this.sendToMonitoring(error, context)
 
       if (returnHttpResponse && typeof window === 'undefined') {
         return NextResponse.json({error: userFriendlyMessage}, {status: 500})
@@ -53,24 +55,17 @@ export class ErrorHandler {
   }
 
   /**
-   * Gera uma mensagem amigável para o usuário final com base no tipo de erro.
-   * @param error Erro capturado
-   * @param defaultMessage Mensagem padrão se o erro não for reconhecido
-   * @returns Uma mensagem amigável para o usuário
+   * Retorna uma mensagem amigável baseada no tipo de erro.
+   * @param error Erro capturado.
+   * @param defaultMessage Mensagem padrão caso o erro não seja reconhecido.
+   * @returns Mensagem amigável para o usuário.
    */
   private static getFriendlyMessage(
     error: unknown,
     defaultMessage: string,
   ): string {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      switch (error.code) {
-        case 'P2002':
-          return 'Um registro com essas informações já existe.'
-        case 'P2025':
-          return 'Registro não encontrado.'
-        default:
-          return 'Erro no banco de dados. Tente novamente.'
-      }
+      return this.getPrismaErrorMessage(error)
     }
 
     if (error instanceof AxiosError) {
@@ -91,13 +86,30 @@ export class ErrorHandler {
   }
 
   /**
-   * Envia o erro para um sistema de monitoramento (e.g., Sentry, LogRocket, etc.)
-   * @param error Erro capturado
-   * @param context Contexto adicional do erro
+   * Gera mensagens de erro específicas para erros do Prisma.
+   * @param error Instância de erro do Prisma.
+   * @returns Mensagem amigável do erro.
+   */
+  private static getPrismaErrorMessage(
+    error: Prisma.PrismaClientKnownRequestError,
+  ): string {
+    const errorMessages: Record<string, string> = {
+      P2002: 'Um registro com essas informações já existe.',
+      P2025: 'Registro não encontrado.',
+    }
+
+    return (
+      errorMessages[error.code] || 'Erro no banco de dados. Tente novamente.'
+    )
+  }
+
+  /**
+   * Envia o erro para um sistema de monitoramento (e.g., Sentry, LogRocket, etc.).
+   * @param error Erro capturado.
+   * @param context Contexto adicional do erro.
    */
   private static sendToMonitoring(error: unknown, context?: string): void {
     if (process.env.NODE_ENV === 'production') {
-      const Sentry = require('@sentry/node')
       Sentry.captureException(error, {
         tags: {context},
       })
