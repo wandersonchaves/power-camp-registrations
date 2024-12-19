@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react'
+import React from 'react'
 import {CustomerStatusEnum} from '@prisma/client'
 
 import {type Customer} from '@/types/Customer'
@@ -11,18 +11,18 @@ interface CustomerTableProps {
   generatingCustomerId: string | null
 }
 
-const getColorForStatus = (status: string): string => {
-  const statusMap: Record<string, string> = {
-    paid: 'bg-green-100 text-green-800',
-    settled: 'bg-green-100 text-green-800',
-    waiting: 'bg-yellow-100 text-yellow-800',
-    unpaid: 'bg-red-100 text-red-800',
-    contested: 'bg-yellow-100 text-yellow-800',
-    refunded: 'bg-yellow-100 text-yellow-800',
-    canceled: 'bg-yellow-100 text-yellow-800',
-  }
-  return statusMap[status] || 'bg-gray-100 text-gray-800'
-}
+// const getColorForStatus = (status: string): string => {
+//   const statusMap: Record<string, string> = {
+//     paid: 'bg-green-100 text-green-800',
+//     settled: 'bg-green-100 text-green-800',
+//     waiting: 'bg-yellow-100 text-yellow-800',
+//     unpaid: 'bg-red-100 text-red-800',
+//     contested: 'bg-yellow-100 text-yellow-800',
+//     refunded: 'bg-yellow-100 text-yellow-800',
+//     canceled: 'bg-yellow-100 text-yellow-800',
+//   }
+//   return statusMap[status] || 'bg-gray-100 text-gray-800'
+// }
 
 const getCustomerStatusDescription = (status: CustomerStatusEnum): string => {
   const descriptionMap: Record<CustomerStatusEnum, string> = {
@@ -43,50 +43,50 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
   generatingCustomerId,
 }) => {
   console.log('🚀 ~ customers:', customers)
-  const [chargeStatuses, setChargeStatuses] = useState<Record<string, string>>(
-    {},
-  )
-  const [loading, setLoading] = useState(false)
+  // const [chargeStatuses, setChargeStatuses] = useState<Record<string, string>>(
+  //   {},
+  // )
+  // const [loading, setLoading] = useState(false)
 
-  const fetchChargeStatus = async (chargeId: number): Promise<string> => {
-    try {
-      const response = await fetch(`/api/charge/${chargeId}/status`)
-      if (response.ok) {
-        const {status} = await response.json()
-        return status?.data?.status || 'Desconhecido'
-      }
-      return response.status === 404 ? 'Não encontrado' : 'Erro'
-    } catch (error) {
-      console.error(`Erro ao buscar status para charge ID ${chargeId}:`, error)
-      return 'Erro'
-    }
-  }
+  // const fetchChargeStatus = async (chargeId: number): Promise<string> => {
+  //   try {
+  //     const response = await fetch(`/api/charge/${chargeId}/status`)
+  //     if (response.ok) {
+  //       const {status} = await response.json()
+  //       return status?.data?.status || 'Desconhecido'
+  //     }
+  //     return response.status === 404 ? 'Não encontrado' : 'Erro'
+  //   } catch (error) {
+  //     console.error(`Erro ao buscar status para charge ID ${chargeId}:`, error)
+  //     return 'Erro'
+  //   }
+  // }
 
-  useEffect(() => {
-    const fetchAllChargesStatus = async () => {
-      setLoading(true)
-      const statuses: Record<string, string> = {}
+  // useEffect(() => {
+  //   const fetchAllChargesStatus = async () => {
+  //     setLoading(true)
+  //     const statuses: Record<string, string> = {}
 
-      for (const customer of customers) {
-        for (const charge of customer.carnets?.[0]?.charges || []) {
-          statuses[charge.chargeId] = await fetchChargeStatus(charge.chargeId)
-        }
-      }
+  //     for (const customer of customers) {
+  //       for (const charge of customer.carnets?.[0]?.charges || []) {
+  //         statuses[charge.chargeId] = await fetchChargeStatus(charge.chargeId)
+  //       }
+  //     }
 
-      setChargeStatuses(statuses)
-      setLoading(false)
-    }
+  //     setChargeStatuses(statuses)
+  //     setLoading(false)
+  //   }
 
-    fetchAllChargesStatus()
-  }, [customers])
+  //   fetchAllChargesStatus()
+  // }, [customers])
 
   return (
     <div className="relative overflow-x-auto shadow-md sm:rounded-lg">
-      {loading && (
+      {/* {loading && (
         <p className="text-center text-sm text-gray-500">
           Carregando status...
         </p>
-      )}
+      )} */}
       <table className="w-full text-left text-sm text-gray-500 dark:text-gray-400">
         <thead className="bg-gray-50 text-xs uppercase text-gray-700 dark:bg-gray-700 dark:text-gray-400">
           <tr>
@@ -116,10 +116,11 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
                 {customer.carnets?.[0]?.charges?.map((charge) => (
                   <span
                     key={charge.chargeId}
-                    className={`inline-block rounded px-3 py-1 text-xs font-medium ${getColorForStatus(
-                      chargeStatuses[charge.chargeId] || 'Desconhecido',
-                    )}`}
+                    // className={`inline-block rounded px-3 py-1 text-xs font-medium ${getColorForStatus(
+                    //   chargeStatuses[charge.chargeId] || 'Desconhecido',
+                    // )}`}
                   >
+                    Tem parcelas
                     {charge.parcel}
                   </span>
                 )) || <span className="text-gray-500">Sem parcelas</span>}
