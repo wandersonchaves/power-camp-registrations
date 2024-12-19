@@ -18,7 +18,7 @@ export default function EditParcelModal({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-gray-600 bg-opacity-50">
+    <div className="bg-opacity/50 fixed inset-0 flex items-center justify-center bg-gray-600">
       <div className="w-1/3 rounded bg-white p-6 shadow-md">
         <h2 className="text-lg font-bold">Editar Data de Vencimento</h2>
         <input
