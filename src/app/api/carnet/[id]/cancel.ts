@@ -1,31 +1,36 @@
 import {NextResponse} from 'next/server'
 
 import {cancelCarnet, getAuthorizationToken} from '@/utils/efipay'
-import {logError} from '@/utils/logger'
+import {ErrorHandler} from '@/utils/errorHandler'
 
-export async function PUT(request: Request, {params}: {params: {id: string}}) {
+interface RequestParams {
+  params: {id: string}
+}
+
+export async function PUT(request: Request, {params}: RequestParams) {
   const {id: carnetId} = params
 
-  try {
-    if (!carnetId) {
-      return NextResponse.json(
-        {error: 'O carnet_id é obrigatório.'},
-        {status: 400},
-      )
-    }
-
-    const token = await getAuthorizationToken()
-    await cancelCarnet(carnetId, token)
-
+  if (!carnetId) {
     return NextResponse.json(
-      {message: 'Carnê cancelado com sucesso.'},
-      {status: 200},
-    )
-  } catch (error) {
-    logError('Erro ao cancelar o carnê:', error)
-    return NextResponse.json(
-      {error: 'Erro ao cancelar o carnê.', details: error},
-      {status: 500},
+      {error: 'O carnet_id é obrigatório.'},
+      {status: 400},
     )
   }
+
+  return await ErrorHandler.handle(
+    async () => {
+      const token = await getAuthorizationToken()
+      await cancelCarnet(carnetId, token)
+
+      return NextResponse.json(
+        {message: 'Carnê cancelado com sucesso.'},
+        {status: 200},
+      )
+    },
+    {
+      context: `PUT /api/carnet/${carnetId}`,
+      defaultErrorMessage: 'Erro ao cancelar o carnê.',
+      returnHttpResponse: true,
+    },
+  )
 }

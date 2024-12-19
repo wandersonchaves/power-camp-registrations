@@ -13,7 +13,7 @@ import {
   TRAVEL_SERVICE_NAME,
 } from '@/config/constants'
 import {useCustomers} from '@/hooks/useCustomers'
-import {logError, logSuccess} from '@/utils/logger'
+import type {Customer} from '@/types/Customer'
 import {sanitizePhoneNumber} from '@/utils/phoneUtils'
 
 const CustomersPage = () => {
@@ -61,14 +61,32 @@ const CustomersPage = () => {
 
       if (!response.ok) throw new Error('Erro ao gerar o carnê')
 
-      const data = await response.json()
+      await response.json()
       alert('Carnê gerado com sucesso!')
-      logSuccess('Resposta do servidor:', data)
     } catch (error) {
       alert('Erro ao gerar o carnê')
-      logError('Erro ao gerar o carnê:', error)
+      console.error('Erro ao gerar o carnê:', error)
     } finally {
       setGeneratingCustomerId(null)
+    }
+  }
+
+  const handleConfirmCustomer = async (customer: Customer) => {
+    try {
+      const response = await fetch(`/api/customers/${customer.id}/confirm`, {
+        method: 'PUT',
+      })
+
+      if (!response.ok) {
+        throw new Error('Erro ao confirmar o cliente.')
+      }
+
+      const updatedCustomer = await response.json()
+      alert('Cliente confirmado com sucesso!')
+      console.log('Cliente atualizado:', updatedCustomer)
+    } catch (error) {
+      console.error('Erro ao confirmar cliente:', error)
+      alert('Erro ao confirmar cliente.')
     }
   }
 
@@ -91,6 +109,7 @@ const CustomersPage = () => {
       </div>
       <CustomerTable
         customers={customers}
+        onConfirmCustomer={handleConfirmCustomer}
         onGenerateCarnet={handleGenerateCarnet}
         generatingCustomerId={generatingCustomerId}
       />

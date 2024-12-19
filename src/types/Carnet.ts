@@ -1,24 +1,15 @@
-import type {ChargeOutput} from './Charge'
+import type {Charge} from './Charge'
 
-export interface CarnetInput {
+export interface Carnet {
   customerId: string
-  carnetId: string
+  carnetId: number
   status: string
-  repeats: number
-  value: number
-  cover?: string
-  link: string
-  carnetLink?: string
-}
-
-export interface CarnetOutput {
-  customerId: string
-  carnetId: string
-  status: string
-  repeats: number
-  value: number
   cover: string
   link: string
-  carnetLink?: string
-  charges: ChargeOutput[]
+  carnetLink: string
+  repeats: number
+  value: number
+  customId: string | null
+  charges: Charge[]
+  createdAt: Date
 }

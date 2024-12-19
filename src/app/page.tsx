@@ -1,12 +1,11 @@
 'use client'
 
 import CustomersPage from './customers/page'
-import ImportPage from './import/page'
 
 import {useCustomers} from '@/hooks/useCustomers'
 
 const Home = () => {
-  const {customers, loading} = useCustomers()
+  const {loading} = useCustomers()
 
   if (loading) {
     return (
@@ -16,7 +15,7 @@ const Home = () => {
     )
   }
 
-  return <>{customers?.length > 0 ? <CustomersPage /> : <ImportPage />}</>
+  return <CustomersPage />
 }
 
 export default Home

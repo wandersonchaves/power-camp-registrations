@@ -2,35 +2,31 @@ import {NextResponse} from 'next/server'
 
 import {saveCarnetData} from '@/services/carnetService'
 import {createCarnet} from '@/services/efipayService'
-import {logError} from '@/utils/logger'
+import {ErrorHandler} from '@/utils/errorHandler'
 import {mapEfiPayDataToCarnet} from '@/utils/mappers'
 
 export async function POST(req: Request) {
-  try {
+  return ErrorHandler.handle(async () => {
     const body = await req.json()
-    const carnetResponse = await createCarnet(body)
 
-    const carnet = mapEfiPayDataToCarnet(carnetResponse.data, body.customerId)
-
-    await saveCarnetData(carnet, body.customer)
-
-    return NextResponse.json({
-      message: 'Carnet gerado com sucesso',
-      data: carnet,
-    })
-  } catch (error: unknown) {
-    if (error instanceof Error) {
-      logError('Erro ao gerar o Carnet:', error.message)
+    if (!body.customer || typeof body.customer !== 'object') {
       return NextResponse.json(
-        {message: 'Erro ao gerar o Carnet', error: error.message},
-        {status: 500},
+        {message: 'customer é obrigatório e deve ser um objeto válido.'},
+        {status: 400},
       )
     }
 
-    logError('Erro desconhecido:', error)
+    const carnetResponse = await createCarnet(body)
+    const carnet = mapEfiPayDataToCarnet(carnetResponse.data, body.customerId)
+
+    const carnetRecord = await saveCarnetData(carnet, body.customer)
+
     return NextResponse.json(
-      {message: 'Erro desconhecido ao gerar o Carnet'},
-      {status: 500},
+      {
+        message: 'Carnê gerado com sucesso',
+        data: carnetRecord,
+      },
+      {status: 201},
     )
-  }
+  })
 }

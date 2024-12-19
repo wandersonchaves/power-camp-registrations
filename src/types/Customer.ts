@@ -1,20 +1,16 @@
-import type {CarnetOutput} from './Carnet'
+import type {CustomerStatusEnum} from '@prisma/client'
 
-export interface CustomerInput {
-  name: string
-  cpf: string
-  birthDate?: Date
-  phone?: string
-  email?: string
-  address?: string
-  postalCode?: string
-  spouseName?: string
-  status?: string
-  carnetGenerated?: boolean
-  userId: string
-}
+import type {Carnet} from './Carnet'
 
-export interface CustomerOutput {
+// export enum CustomerStatusEnum {
+//   WAITING_LIST = 'WAITING_LIST',
+//   CONFIRMED = 'CONFIRMED',
+//   CANCELED = 'CANCELED',
+//   INACTIVE = 'INACTIVE',
+//   ACTIVE = 'ACTIVE',
+// }
+
+export interface Customer {
   id: string
   name: string
   cpf: string
@@ -24,11 +20,10 @@ export interface CustomerOutput {
   address?: string
   postalCode?: string
   spouseName?: string
-  status: string
+  status: CustomerStatusEnum
   carnetGenerated: boolean
 
-  userId: string
-  carnets: CarnetOutput[]
+  carnets?: Carnet[]
 }
 
 export interface CustomerData {

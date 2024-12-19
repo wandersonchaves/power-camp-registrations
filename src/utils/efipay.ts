@@ -20,7 +20,7 @@ let tokenExpiry: number | null = null
 
 export const getAuthorizationToken = async (): Promise<string> => {
   if (cachedToken && tokenExpiry && Date.now() < tokenExpiry) {
-    return cachedToken // Retorna o token em cache se ainda for válido.
+    return cachedToken
   }
 
   try {
@@ -45,7 +45,6 @@ export const getAuthorizationToken = async (): Promise<string> => {
     return access_token
   } catch (error) {
     if (axios.isAxiosError(error)) {
-      // Caso o erro seja do Axios
       console.error('Erro ao fazer a requisição:', {
         message: error.message,
         code: error.code,
@@ -53,11 +52,9 @@ export const getAuthorizationToken = async (): Promise<string> => {
       })
       throw new Error('Erro de requisição HTTP')
     } else if (error instanceof Error) {
-      // Caso seja outro tipo de erro
       console.error('Erro genérico:', error.message)
       throw error
     } else {
-      // Para erros desconhecidos
       console.error('Erro desconhecido:', error)
       throw new Error('Ocorreu um erro inesperado')
     }
@@ -82,7 +79,7 @@ export const cancelCarnet = async (
 
 export const getChargeStatus = async (chargeId: string, token: string) => {
   const response = await axios.get(
-    `https://cobrancas.api.efipay.com.br/v1/charge/${chargeId}`,
+    `https://cobrancas-h.api.efipay.com.br/v1/charge/${chargeId}`,
     {
       headers: {
         Authorization: `Bearer ${token}`,

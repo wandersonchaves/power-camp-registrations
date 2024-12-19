@@ -1,19 +1,16 @@
-import {EfiPayData} from 'sdk-typescript-apis-efi'
+import type {CarnetEfiData} from 'sdk-typescript-apis-efi'
 
-import type {CarnetOutput} from '@/types/Carnet'
-import type {ChargeOutput} from '@/types/Charge'
+import type {Carnet} from '@/types/Carnet'
+import type {Charge} from '@/types/Charge'
 
 export const mapEfiPayDataToCarnet = (
-  data: EfiPayData,
+  data: CarnetEfiData,
   customerId: string,
-): CarnetOutput => {
-  const charges = Array.isArray(data.charges)
-    ? data.charges.map<ChargeOutput>((charge) => ({
-        chargeId: charge.charge_id?.toString() || '',
-        parcel:
-          typeof charge.parcel === 'number'
-            ? charge.parcel
-            : Number(charge.parcel),
+): Carnet => {
+  const charges: Charge[] = Array.isArray(data.charges)
+    ? data.charges.map((charge) => ({
+        chargeId: charge.charge_id,
+        parcel: Number(charge.parcel) || 0,
         status: charge.status || 'unknown',
         value: charge.value || 0,
         expireAt: charge.expire_at ? new Date(charge.expire_at) : new Date(),
@@ -23,14 +20,16 @@ export const mapEfiPayDataToCarnet = (
     : []
 
   return {
-    carnetId: data.carnet_id?.toString() || '',
+    carnetId: data.carnet_id,
     customerId,
-    status: data.status || 'unknown',
-    repeats: data.repeats || 0,
-    value: data.value || 0,
+    status: data.status || 'pending',
     cover: data.cover || '',
-    link: data.link || '#',
-    carnetLink: data.carnetLink ?? '#',
+    link: data.link || '',
+    carnetLink: data.carnet_link || '',
+    repeats: data.repeats || 1,
+    value: data.value || 0,
+    customId: data.custom_id ?? null,
+    createdAt: data.created_at ? new Date(data.created_at) : new Date(),
     charges,
   }
 }

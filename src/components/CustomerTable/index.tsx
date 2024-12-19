@@ -1,11 +1,13 @@
 import React, {useEffect, useState} from 'react'
+import {CustomerStatusEnum} from '@prisma/client'
 
-import type {CustomerOutput} from '@/types/Customer'
+import {type Customer} from '@/types/Customer'
 import {sanitizePhoneNumber} from '@/utils/phoneUtils'
 
 interface CustomerTableProps {
-  customers: CustomerOutput[]
-  onGenerateCarnet: (customer: CustomerOutput) => void
+  customers: Customer[]
+  onConfirmCustomer?: (customer: Customer) => void
+  onGenerateCarnet?: (customer: Customer) => void
   generatingCustomerId: string | null
 }
 
@@ -22,26 +24,31 @@ const getColorForStatus = (status: string): string => {
   return statusMap[status] || 'bg-gray-100 text-gray-800'
 }
 
-const getCarnetStatusDescription = (status: string): string => {
-  const descriptionMap: Record<string, string> = {
-    up_to_date: 'Em dia',
-    unpaid: 'Inadimplente',
-    finished: 'Finalizado',
+const getCustomerStatusDescription = (status: CustomerStatusEnum): string => {
+  const descriptionMap: Record<CustomerStatusEnum, string> = {
+    [CustomerStatusEnum.WAITING_LIST]: 'Lista de espera',
+    [CustomerStatusEnum.CONFIRMED]: 'Confirmado',
+    [CustomerStatusEnum.CANCELED]: 'Cancelado',
+    [CustomerStatusEnum.INACTIVE]: 'Inativo',
+    [CustomerStatusEnum.ACTIVE]: 'Ativo',
   }
+
   return descriptionMap[status] || 'Desconhecido'
 }
 
 const CustomerTable: React.FC<CustomerTableProps> = ({
   customers,
+  onConfirmCustomer,
   onGenerateCarnet,
   generatingCustomerId,
 }) => {
+  console.log('🚀 ~ customers:', customers)
   const [chargeStatuses, setChargeStatuses] = useState<Record<string, string>>(
     {},
   )
   const [loading, setLoading] = useState(false)
 
-  const fetchChargeStatus = async (chargeId: string): Promise<string> => {
+  const fetchChargeStatus = async (chargeId: number): Promise<string> => {
     try {
       const response = await fetch(`/api/charge/${chargeId}/status`)
       if (response.ok) {
@@ -117,13 +124,13 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
                   </span>
                 )) || <span className="text-gray-500">Sem parcelas</span>}
               </td>
-              <td className="px-6 py-4">
-                {customer.carnets?.length ? (
+              {/* <td className="px-6 py-4">
+                {customer.carnetGenerated ||
+                customer.status === CustomerStatusEnum.CONFIRMED ? (
                   <>
                     <div>
                       <span className="font-medium">
-                        Status:{' '}
-                        {getCarnetStatusDescription(customer.carnets[0].status)}
+                        Status: {getCustomerStatusDescription(customer.status)}
                       </span>
                     </div>
                     <button
@@ -146,6 +153,54 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
                       : 'Gerar Carnê'}
                   </button>
                 )}
+              </td> */}
+              <td className="px-6 py-4">
+                <div>
+                  <span className="font-medium">
+                    Status: {getCustomerStatusDescription(customer.status)}
+                  </span>
+                </div>
+
+                {customer.status === CustomerStatusEnum.WAITING_LIST && (
+                  <button
+                    onClick={() => onConfirmCustomer?.(customer)}
+                    className="mt-2 rounded-lg bg-green-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-green-600"
+                  >
+                    Confirmar Inscrição
+                  </button>
+                )}
+
+                {customer.status === CustomerStatusEnum.CONFIRMED &&
+                  customer.carnetGenerated &&
+                  Array.isArray(customer.carnets) &&
+                  customer.carnets.length > 0 && (
+                    <button
+                      onClick={() => {
+                        const carnetLink = customer.carnets?.[0]?.link
+                        if (carnetLink) {
+                          window.open(carnetLink, '_blank')
+                        } else {
+                          alert('Link do carnê não encontrado.')
+                        }
+                      }}
+                      className="mt-1 rounded-lg bg-orange-400 px-5 py-2.5 text-sm font-medium text-white hover:bg-orange-500"
+                    >
+                      Ver Carnê
+                    </button>
+                  )}
+
+                {customer.status === CustomerStatusEnum.CONFIRMED &&
+                  !customer.carnetGenerated && (
+                    <button
+                      onClick={() => onGenerateCarnet?.(customer)}
+                      disabled={generatingCustomerId === customer.id}
+                      className="mb-2 rounded-lg bg-blue-700 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300"
+                    >
+                      {generatingCustomerId === customer.id
+                        ? 'Gerando...'
+                        : 'Gerar Carnê'}
+                    </button>
+                  )}
               </td>
             </tr>
           ))}

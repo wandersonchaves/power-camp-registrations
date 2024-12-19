@@ -1,10 +1,9 @@
 'use client'
 
 import React, {useState} from 'react'
-import {toast} from 'react-hot-toast'
 
 import FileUpload from '@/components/FileUpload'
-import {logError, logSuccess} from '@/utils/logger'
+import {ErrorHandler} from '@/utils/errorHandler'
 
 const ImportPage: React.FC = () => {
   const [loading, setLoading] = useState(false)
@@ -15,19 +14,15 @@ const ImportPage: React.FC = () => {
     formData.append('file', file)
 
     try {
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      })
-
-      if (response.ok) {
-        logSuccess('Upload realizado com sucesso!')
-      } else {
-        logError('Erro no upload:', await response.json())
-      }
-    } catch (error) {
-      logError('Erro ao importar:', error)
-      toast.error('Erro ao processar o arquivo.')
+      await ErrorHandler.handle(
+        async () => {
+          return await fetch('/api/upload', {
+            method: 'POST',
+            body: formData,
+          })
+        },
+        {context: 'ImportPage'},
+      )
     } finally {
       setLoading(false)
     }

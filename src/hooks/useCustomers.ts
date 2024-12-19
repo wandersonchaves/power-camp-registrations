@@ -1,12 +1,12 @@
 'use client'
 
-import {useEffect, useState} from 'react'
+import {useCallback, useEffect, useState} from 'react'
 
-import type {CustomerOutput} from '@/types/Customer'
-import {logError} from '@/utils/logger'
+import type {Customer} from '@/types/Customer'
+import {ErrorHandler} from '@/utils/errorHandler'
 
 interface UseCustomersResult {
-  customers: CustomerOutput[]
+  customers: Customer[]
   loading: boolean
   totalPages: number
   currentPage: number
@@ -17,37 +17,50 @@ export const useCustomers = (
   initialPage: number = 1,
   limit: number = 10,
 ): UseCustomersResult => {
-  const [customers, setCustomers] = useState<CustomerOutput[]>([])
+  const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState<boolean>(true)
   const [totalPages, setTotalPages] = useState<number>(1)
   const [currentPage, setCurrentPage] = useState<number>(initialPage)
 
-  useEffect(() => {
-    const fetchCustomers = async () => {
-      setLoading(true)
-      try {
-        const response = await fetch(
-          `/api/customers?page=${currentPage}&limit=${limit}`,
-        )
-        const data = await response.json()
+  const fetchCustomers = useCallback(async () => {
+    setLoading(true)
 
-        setCustomers(data.customers)
-        setTotalPages(data.totalPages)
-      } catch (error) {
-        logError('Erro ao buscar clientes:', error)
-      } finally {
-        setLoading(false)
-      }
+    try {
+      await ErrorHandler.handle(
+        async () => {
+          const response = await fetch(
+            `/api/customers?page=${currentPage}&limit=${limit}`,
+          )
+          if (!response.ok) {
+            throw new Error(`Failed to fetch customers: ${response.status}`)
+          }
+
+          const {data, meta} = await response.json()
+
+          setCustomers(data)
+          setTotalPages(meta?.totalPages || 1)
+        },
+        {
+          context: 'useCustomers',
+        },
+      )
+    } finally {
+      setLoading(false)
     }
-
-    fetchCustomers()
   }, [currentPage, limit])
 
-  const setPage = (page: number) => {
-    if (page > 0 && page <= totalPages) {
-      setCurrentPage(page)
-    }
-  }
+  useEffect(() => {
+    fetchCustomers()
+  }, [fetchCustomers])
+
+  const setPage = useCallback(
+    (page: number) => {
+      if (page > 0 && page <= totalPages) {
+        setCurrentPage(page)
+      }
+    },
+    [totalPages],
+  )
 
   return {customers, loading, totalPages, currentPage, setPage}
 }

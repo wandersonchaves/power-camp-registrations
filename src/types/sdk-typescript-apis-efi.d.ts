@@ -6,24 +6,27 @@ declare module 'sdk-typescript-apis-efi' {
     certificate: string
   }
 
-  export interface EfiPayData {
+  export interface ChargeEfiData {
+    charge_id: number
+    parcel: number
+    status: string
+    value: number
+    expire_at: Date
+    url: string
+    parcel_link: string
+  }
+
+  export interface CarnetEfiData {
     carnet_id: number
     status: string
+    cover: string
+    link: string
+    carnet_link: string
     repeats: number
     value: number
-    link: string
-    cover: string
-    carnetLink?: string
-    created_at: string
-    charges: Array<{
-      charge_id: number
-      parcel: number
-      status: string
-      value: number
-      expire_at: string
-      url: string
-      parcel_link: string
-    }>
+    custom_id: string | null
+    charges: ChargeEfiData[]
+    created_at: Date
   }
 
   interface EfiPayResponse {
@@ -31,24 +34,23 @@ declare module 'sdk-typescript-apis-efi' {
     data: EfiPayData
   }
 
-  interface ChargeItem {
+  interface ChargeItemEfiData {
     name: string
     value: number
     amount: number
   }
 
-  interface Customer {
+  interface CustomerEfiData {
     name: string
     cpf: string
     phone_number: string
   }
 
-  interface CreateChargeBody {
+  interface CreateChargeBodyEfiData {
     items: ChargeItem[]
-    customer: Customer
+    customer: CustomerData
     expire_at: string
     repeats: number
-    split_items?: boolean
     message?: string
   }
 

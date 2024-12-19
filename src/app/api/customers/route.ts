@@ -1,3 +1,4 @@
+import {CustomerStatusEnum} from '@prisma/client'
 import {NextResponse} from 'next/server'
 import {getServerSession} from 'next-auth'
 
@@ -6,98 +7,98 @@ import {authOptions} from '../auth/[...nextauth]/auth-options'
 import {prisma} from '@/lib/prisma'
 import {customerSchema} from '@/schemas/customerSchema'
 import {getCustomers} from '@/services/customerService'
-import {logError} from '@/utils/logger'
+import {ErrorHandler} from '@/utils/errorHandler'
 
-export async function GET(req: Request) {
-  try {
-    const url = new URL(req.url)
-    const page = parseInt(url.searchParams.get('page') ?? '1', 10)
-    const limit = parseInt(url.searchParams.get('limit') ?? '10', 10)
+export async function GET(request: Request) {
+  return ErrorHandler.handle(
+    async () => {
+      const {searchParams} = new URL(request.url)
+      const page = parseInt(searchParams.get('page') || '1', 10)
+      const limit = parseInt(searchParams.get('limit') || '10', 10)
 
-    const customersData = await getCustomers({page, limit})
+      if (isNaN(page) || isNaN(limit) || page <= 0 || limit <= 0) {
+        return NextResponse.json(
+          {message: 'Parâmetros inválidos de paginação.'},
+          {status: 400},
+        )
+      }
 
-    return NextResponse.json(customersData)
-  } catch (error: unknown) {
-    if (error instanceof Error) {
-      logError('Erro na API de busca de customers:', error.message)
-      return NextResponse.json(
-        {message: 'Erro ao buscar clientes', error: error.message},
-        {status: 500},
-      )
-    } else {
-      logError('Erro desconhecido na API de busca de customers:', error)
-      return NextResponse.json(
-        {message: 'Erro ao buscar clientes', error: 'Erro desconhecido'},
-        {status: 500},
-      )
-    }
-  }
+      const customersData = await getCustomers({page, limit})
+
+      if (!customersData || !customersData.customers) {
+        return NextResponse.json(
+          {message: 'Nenhum dado de cliente encontrado.'},
+          {status: 404},
+        )
+      }
+
+      const {customers, total, totalPages, currentPage} = customersData
+
+      return NextResponse.json({
+        data: customers,
+        meta: {
+          total,
+          totalPages,
+          currentPage,
+        },
+      })
+    },
+    {context: 'GET /api/customers'},
+  )
 }
 
 export async function POST(request: Request) {
-  try {
-    const session = await getServerSession(authOptions)
+  return ErrorHandler.handle(
+    async () => {
+      const session = await getServerSession(authOptions)
 
-    if (!session || !session.user || !session.user.id) {
-      return NextResponse.json(
-        {message: 'Usuário não autenticado ou ID de usuário ausente.'},
-        {status: 401},
-      )
-    }
+      if (!session?.user?.id) {
+        return NextResponse.json(
+          {message: 'Usuário não autenticado ou ID de usuário ausente.'},
+          {status: 401},
+        )
+      }
 
-    const userId = session.user.id
-    const payload = await request.json()
+      const userId = session.user.id
+      const payload = await request.json()
 
-    if (!payload) {
-      return new Response(JSON.stringify({error: 'O payload está vazio.'}), {
-        status: 400,
+      if (!payload) {
+        return NextResponse.json(
+          {error: 'O payload está vazio.'},
+          {status: 400},
+        )
+      }
+
+      const validatedData = customerSchema.parse(payload)
+
+      const existingCustomer = await prisma.customer.findUnique({
+        where: {cpf: validatedData.cpf},
       })
-    }
 
-    const validatedData = customerSchema.parse(payload)
+      if (existingCustomer) {
+        return NextResponse.json(
+          {
+            message: 'Já existe um cliente com este CPF.',
+            customer: existingCustomer,
+          },
+          {status: 409},
+        )
+      }
 
-    const existingCustomer = await prisma.customer.findUnique({
-      where: {cpf: validatedData.cpf},
-    })
+      const newCustomer = await prisma.customer.create({
+        data: {
+          ...validatedData,
+          birthDate: validatedData.birthDate
+            ? new Date(validatedData.birthDate)
+            : null,
+          status: validatedData.status ?? CustomerStatusEnum.WAITING_LIST,
+          carnetGenerated: false,
+          user: {connect: {id: userId}},
+        },
+      })
 
-    if (existingCustomer) {
-      return new Response(
-        JSON.stringify({
-          message: 'Já existe um cliente com este CPF.',
-          customer: existingCustomer,
-        }),
-        {status: 409},
-      )
-    }
-
-    const newCustomer = await prisma.customer.create({
-      data: {
-        ...validatedData,
-        birthDate: validatedData.birthDate
-          ? new Date(validatedData.birthDate)
-          : null,
-        status: validatedData.status ?? 'waiting_list',
-        carnetGenerated: false,
-        user: {connect: {id: userId}},
-      },
-    })
-
-    return new Response(JSON.stringify(newCustomer), {status: 201})
-  } catch (err) {
-    console.error(err)
-
-    if (err instanceof Error && 'code' in err && err.code === 'P2002') {
-      return new Response(
-        JSON.stringify({
-          error: 'Erro ao criar cliente. CPF já cadastrado.',
-        }),
-        {status: 409},
-      )
-    }
-
-    return new Response(
-      JSON.stringify({error: 'Erro ao processar o pedido.', details: err}),
-      {status: 500},
-    )
-  }
+      return NextResponse.json(newCustomer, {status: 201})
+    },
+    {context: 'POST /api/customers'},
+  )
 }
