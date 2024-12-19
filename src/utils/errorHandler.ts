@@ -1,6 +1,4 @@
-// src/utils/errorHandler.ts
 import {Prisma} from '@prisma/client'
-import * as Sentry from '@sentry/node'
 import {AxiosError} from 'axios'
 import {NextResponse} from 'next/server'
 
@@ -44,7 +42,7 @@ export class ErrorHandler {
         defaultErrorMessage,
       )
 
-      this.sendToMonitoring(error, context)
+      this.logError(error, context)
 
       if (returnHttpResponse && typeof window === 'undefined') {
         return NextResponse.json({error: userFriendlyMessage}, {status: 500})
@@ -104,15 +102,47 @@ export class ErrorHandler {
   }
 
   /**
-   * Envia o erro para um sistema de monitoramento (e.g., Sentry, LogRocket, etc.).
+   * Faz log do erro em um sistema de logs local ou remoto.
+   * Substitui a necessidade de ferramentas externas como o Sentry.
    * @param error Erro capturado.
    * @param context Contexto adicional do erro.
    */
-  private static sendToMonitoring(error: unknown, context?: string): void {
-    if (process.env.NODE_ENV === 'production') {
-      Sentry.captureException(error, {
-        tags: {context},
-      })
+  private static logError(error: unknown, context?: string): void {
+    const isProduction = process.env.NODE_ENV === 'production'
+
+    const logDetails = {
+      timestamp: new Date().toISOString(),
+      context,
+      error: this.serializeError(error),
     }
+
+    if (isProduction) {
+      // Simula envio para sistema de monitoramento (e.g., Logstash, AWS CloudWatch)
+      console.log('[Log - Production]', JSON.stringify(logDetails))
+    } else {
+      // Log mais detalhado para desenvolvimento
+      console.error('[Log - Development]', logDetails)
+    }
+  }
+
+  /**
+   * Serializa um erro para facilitar o log e depuração.
+   * @param error Erro capturado.
+   * @returns Objeto serializável do erro.
+   */
+  private static serializeError(error: unknown): Record<string, unknown> {
+    if (error instanceof Error) {
+      return {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+      }
+    }
+
+    if (typeof error === 'object' && error !== null) {
+      return {...error} // Serializa objetos genéricos
+    }
+
+    return {error: String(error)} // Para tipos primitivos como string, number, etc.
   }
 }
