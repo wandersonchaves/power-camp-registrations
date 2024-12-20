@@ -31,6 +31,7 @@ const ParcelDetailsModal: FC<ParcelDetailsModalProps> = ({
   isOpen,
   onClose,
 }) => {
+  console.log('🚀 ~ carnetId:', carnetId)
   const [parcels, setParcels] = useState<Parcel[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -54,6 +55,7 @@ const ParcelDetailsModal: FC<ParcelDetailsModalProps> = ({
           pdf: charge.pdf,
           pix: charge.pix,
         })) || []
+      console.log('🚀 ~ fetchParcels ~ data:', data)
 
       setParcels(fetchedParcels)
     } catch (error) {

@@ -21,6 +21,7 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
   const [selectedCarnetId, setSelectedCarnetId] = useState<number | null>(null)
 
   const handleOpenModal = (carnetId: number | undefined) => {
+    console.log('🚀 ~ handleOpenModal ~ carnetId:', carnetId)
     if (carnetId) {
       setSelectedCarnetId(carnetId)
     } else {
