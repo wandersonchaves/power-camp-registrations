@@ -80,17 +80,19 @@ export const getCustomers = async ({
 
     // Normaliza os dados retornados
     const normalizedCustomers: Customer[] = customers.map((customer) => ({
-      id: customer.id,
-      name: customer.name,
-      cpf: customer.cpf,
+      id: customer.id || '', // Garante que `id` nunca seja `null`
+      name: customer.name || '', // Define um valor padrão para `name`
+      cpf: customer.cpf || '', // Define um valor padrão para `cpf`
       birthDate: customer.birthDate || undefined,
       phone: customer.phone || undefined,
       email: customer.email || undefined,
       address: customer.address || undefined,
       postalCode: customer.postalCode || undefined,
       spouseName: customer.spouseName || undefined,
-      status: mapPrismaStatusToCustomerStatus(customer.status),
-      carnetGenerated: customer.carnetGenerated,
+      status: mapPrismaStatusToCustomerStatus(
+        customer.status || 'WAITING_LIST',
+      ), // Valor padrão para status
+      carnetGenerated: customer.carnetGenerated ?? false, // Define false como padrão para booleanos
       createdAt: customer.createdAt,
       updatedAt: customer.updatedAt,
       carnets: customer.carnets.map((carnet) => ({
