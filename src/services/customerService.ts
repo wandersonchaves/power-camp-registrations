@@ -1,4 +1,4 @@
-import {CustomerStatusEnum} from '@prisma/client'
+import {Prisma} from '@prisma/client'
 
 import {prisma} from '@/lib/prisma'
 import type {Customer} from '@/types/Customer'
@@ -17,23 +17,40 @@ interface GetCustomersResponse {
 }
 
 /**
- * Mapeia o status do Prisma para o status usado pelo sistema.
- * @param status Status do Prisma
- * @returns Status mapeado
+ * Normaliza um cliente retornado do Prisma para a tipagem de `Customer`.
+ * @param customer Dados do cliente retornado do Prisma
+ * @returns Cliente normalizado
  */
-export const mapPrismaStatusToCustomerStatus = (
-  status: CustomerStatusEnum,
-): CustomerStatusEnum => {
-  const statusMap: Record<CustomerStatusEnum, CustomerStatusEnum> = {
-    [CustomerStatusEnum.WAITING_LIST]: CustomerStatusEnum.WAITING_LIST,
-    [CustomerStatusEnum.CONFIRMED]: CustomerStatusEnum.CONFIRMED,
-    [CustomerStatusEnum.CANCELED]: CustomerStatusEnum.CANCELED,
-    [CustomerStatusEnum.INACTIVE]: CustomerStatusEnum.INACTIVE,
-    [CustomerStatusEnum.ACTIVE]: CustomerStatusEnum.ACTIVE,
-  }
-
-  return statusMap[status] || CustomerStatusEnum.WAITING_LIST
-}
+const normalizeCustomer = (
+  customer: Prisma.CustomerGetPayload<{
+    include: {
+      carnets: {
+        include: {
+          charges: true
+        }
+      }
+    }
+  }>,
+): Customer => ({
+  id: customer.id,
+  name: customer.name,
+  cpf: customer.cpf,
+  birthDate: customer.birthDate || undefined,
+  phone: customer.phone || undefined,
+  email: customer.email || undefined,
+  address: customer.address || undefined,
+  postalCode: customer.postalCode || undefined,
+  spouseName: customer.spouseName || undefined,
+  status: customer.status,
+  carnetGenerated: customer.carnetGenerated,
+  carnets: customer.carnets.map((carnet) => ({
+    ...carnet,
+    charges: carnet.charges.map((charge) => ({
+      ...charge,
+      parcelLink: charge.parcelLink || '', // Garante que `parcelLink` nunca seja `null`
+    })),
+  })),
+})
 
 /**
  * Obtém uma lista de clientes com paginação e suporte a busca.
@@ -49,16 +66,16 @@ export const getCustomers = async ({
     const skip = (page - 1) * limit
 
     // Condição de busca por nome ou CPF
-    const searchCondition = search
+    const searchCondition: Prisma.CustomerWhereInput | undefined = search
       ? {
           OR: [
-            {name: {contains: search, mode: 'insensitive' as const}},
-            {cpf: {contains: search, mode: 'insensitive' as const}},
+            {name: {contains: search, mode: 'insensitive'}},
+            {cpf: {contains: search, mode: 'insensitive'}},
           ],
         }
       : undefined
 
-    // Executa consultas em transação para eficiência
+    // Consulta em transação para eficiência
     const [customers, total] = await prisma.$transaction([
       prisma.customer.findMany({
         where: searchCondition,
@@ -78,30 +95,8 @@ export const getCustomers = async ({
       }),
     ])
 
-    // Normaliza os dados retornados
-    const normalizedCustomers: Customer[] = customers.map((customer) => ({
-      id: customer.id || '', // Garante que `id` nunca seja `null`
-      name: customer.name || '', // Define um valor padrão para `name`
-      cpf: customer.cpf || '', // Define um valor padrão para `cpf`
-      birthDate: customer.birthDate || undefined,
-      phone: customer.phone || undefined,
-      email: customer.email || undefined,
-      address: customer.address || undefined,
-      postalCode: customer.postalCode || undefined,
-      spouseName: customer.spouseName || undefined,
-      status: mapPrismaStatusToCustomerStatus(
-        customer.status || 'WAITING_LIST',
-      ), // Valor padrão para status
-      carnetGenerated: customer.carnetGenerated ?? false, // Define false como padrão para booleanos
-      createdAt: customer.createdAt,
-      updatedAt: customer.updatedAt,
-      carnets: customer.carnets.map((carnet) => ({
-        ...carnet,
-        charges: carnet.charges.map((charge) => ({
-          ...charge,
-        })),
-      })),
-    }))
+    // Normaliza os clientes retornados
+    const normalizedCustomers = customers.map(normalizeCustomer)
 
     return {
       customers: normalizedCustomers,
@@ -111,6 +106,6 @@ export const getCustomers = async ({
     }
   } catch (error) {
     console.error('Erro ao buscar clientes:', error)
-    return null // Garante que o retorno é consistente
+    return null
   }
 }
