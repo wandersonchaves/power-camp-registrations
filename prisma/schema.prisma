@@ -89,7 +89,7 @@ model Customer {
   carnets Carnet[]
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt // Adicionando um valor padrão
+  updatedAt DateTime @default(now()) @updatedAt
 }
 
 model Carnet {
@@ -108,7 +108,7 @@ model Carnet {
   charges    Charge[]
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt // Adicionando um valor padrão
+  updatedAt DateTime @default(now()) @updatedAt
 }
 
 model Charge {
@@ -122,8 +122,8 @@ model Charge {
   value      Int
   expireAt   DateTime
   url        String
-  parcelLink String?  @default("") // Adicionando um valor padrão
+  parcelLink String?  @default("")
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt // Adicionando um valor padrão
+  updatedAt DateTime @default(now()) @updatedAt
 }
