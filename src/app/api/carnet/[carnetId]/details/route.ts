@@ -9,7 +9,7 @@ export async function GET(
   context: {params: Promise<{carnetId: string}>},
 ): Promise<Response> {
   try {
-    const {carnetId} = await context.params // Aguardar a resolução do `params`
+    const {carnetId} = await context.params
 
     if (!carnetId) {
       return NextResponse.json(
@@ -19,9 +19,7 @@ export async function GET(
     }
 
     const token = await getAuthorizationToken()
-    console.log('🚀 ~ token:', token)
     const API_BASE_URL = env.EFI_API_BASE_URL
-    console.log('🚀 ~ API_BASE_URL:', API_BASE_URL)
 
     const response = await axios.get(`${API_BASE_URL}/carnet/${carnetId}`, {
       headers: {

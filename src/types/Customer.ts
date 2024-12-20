@@ -2,14 +2,6 @@ import type {CustomerStatusEnum} from '@prisma/client'
 
 import type {Carnet} from './Carnet'
 
-// export enum CustomerStatusEnum {
-//   WAITING_LIST = 'WAITING_LIST',
-//   CONFIRMED = 'CONFIRMED',
-//   CANCELED = 'CANCELED',
-//   INACTIVE = 'INACTIVE',
-//   ACTIVE = 'ACTIVE',
-// }
-
 export interface Customer {
   id: string
   name: string

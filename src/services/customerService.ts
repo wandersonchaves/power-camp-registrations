@@ -16,11 +16,6 @@ interface GetCustomersResponse {
   totalPages: number
 }
 
-/**
- * Normaliza um cliente retornado do Prisma para a tipagem de `Customer`.
- * @param customer Dados do cliente retornado do Prisma
- * @returns Cliente normalizado
- */
 const normalizeCustomer = (
   customer: Prisma.CustomerGetPayload<{
     include: {
@@ -47,16 +42,11 @@ const normalizeCustomer = (
     ...carnet,
     charges: carnet.charges.map((charge) => ({
       ...charge,
-      parcelLink: charge.parcelLink || '', // Garante que `parcelLink` nunca seja `null`
+      parcelLink: charge.parcelLink || '',
     })),
   })),
 })
 
-/**
- * Obtém uma lista de clientes com paginação e suporte a busca.
- * @param params Parâmetros de busca e paginação
- * @returns Lista de clientes e metadados de paginação
- */
 export const getCustomers = async ({
   page = 1,
   limit = 10,
@@ -65,7 +55,6 @@ export const getCustomers = async ({
   try {
     const skip = (page - 1) * limit
 
-    // Condição de busca por nome ou CPF
     const searchCondition: Prisma.CustomerWhereInput | undefined = search
       ? {
           OR: [
@@ -75,7 +64,6 @@ export const getCustomers = async ({
         }
       : undefined
 
-    // Consulta em transação para eficiência
     const [customers, total] = await prisma.$transaction([
       prisma.customer.findMany({
         where: searchCondition,
@@ -95,7 +83,6 @@ export const getCustomers = async ({
       }),
     ])
 
-    // Normaliza os clientes retornados
     const normalizedCustomers = customers.map(normalizeCustomer)
 
     return {

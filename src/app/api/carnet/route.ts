@@ -34,7 +34,6 @@ export async function POST(req: Request): Promise<Response> {
     },
   )
 
-  // Garantir que sempre retornamos um Response
   return (
     response ||
     new Response(

@@ -31,7 +31,6 @@ const ParcelDetailsModal: FC<ParcelDetailsModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  console.log('🚀 ~ carnetId:', carnetId)
   const [parcels, setParcels] = useState<Parcel[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -55,7 +54,6 @@ const ParcelDetailsModal: FC<ParcelDetailsModalProps> = ({
           pdf: charge.pdf,
           pix: charge.pix,
         })) || []
-      console.log('🚀 ~ fetchParcels ~ data:', data)
 
       setParcels(fetchedParcels)
     } catch (error) {
@@ -82,7 +80,7 @@ const ParcelDetailsModal: FC<ParcelDetailsModalProps> = ({
 
       if (response.status === 200 || response.status === 204) {
         alert('Data de vencimento atualizada com sucesso!')
-        await fetchParcels() // Recarregar parcelas após atualização.
+        await fetchParcels()
       } else {
         alert('Erro ao atualizar a data de vencimento. Tente novamente.')
       }

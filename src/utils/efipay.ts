@@ -50,10 +50,7 @@ export const getAuthorizationToken = async (): Promise<string> => {
     throw new Error('Erro ao autenticar com Efipay.')
   }
 }
-/**
- * Cancela um carnê específico pelo ID
- * @param carnetId - ID do carnê
- */
+
 export const cancelCarnet = async (carnetId: string): Promise<void> => {
   try {
     const token = await getAuthorizationToken()
@@ -73,11 +70,6 @@ export const cancelCarnet = async (carnetId: string): Promise<void> => {
   }
 }
 
-/**
- * Obtém o status de uma cobrança específica
- * @param chargeId - ID da cobrança
- * @returns Status da cobrança
- */
 export const getChargeStatus = async (chargeId: string) => {
   try {
     const token = await getAuthorizationToken()
@@ -95,11 +87,6 @@ export const getChargeStatus = async (chargeId: string) => {
   }
 }
 
-/**
- * Manipula erros do Axios de forma genérica
- * @param error - Erro capturado
- * @param customMessage - Mensagem customizada para log
- */
 const handleAxiosError = (error: unknown, customMessage: string): void => {
   if (axios.isAxiosError(error)) {
     console.error(customMessage, {

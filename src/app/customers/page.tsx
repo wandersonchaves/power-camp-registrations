@@ -25,7 +25,6 @@ const CustomersPage = () => {
     setPage,
     searchCustomers,
   } = useCustomers()
-  console.log('🚀 ~ CustomersPage ~ customers:', customers)
   const [searchTerm, setSearchTerm] = useState('')
   const [generatingCustomerId, setGeneratingCustomerId] = useState<
     string | null
