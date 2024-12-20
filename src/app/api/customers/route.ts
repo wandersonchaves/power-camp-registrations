@@ -13,6 +13,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     const searchParams = request.nextUrl.searchParams
     const page = parseInt(searchParams.get('page') || '1', 10)
     const limit = parseInt(searchParams.get('limit') || '10', 10)
+    const search = searchParams.get('search') || ''
 
     if (isNaN(page) || isNaN(limit) || page <= 0 || limit <= 0) {
       return NextResponse.json(
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       )
     }
 
-    const customersData = await getCustomers({page, limit})
+    const customersData = await getCustomers({page, limit, search})
 
     if (!customersData || !customersData.customers) {
       return NextResponse.json(

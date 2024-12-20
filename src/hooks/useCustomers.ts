@@ -3,7 +3,6 @@
 import {useCallback, useEffect, useState} from 'react'
 
 import type {Customer} from '@/types/Customer'
-import {ErrorHandler} from '@/utils/errorHandler'
 
 interface UseCustomersResult {
   customers: Customer[]
@@ -11,6 +10,7 @@ interface UseCustomersResult {
   totalPages: number
   currentPage: number
   setPage: (page: number) => void
+  searchCustomers: (term: string) => void
 }
 
 export const useCustomers = (
@@ -22,32 +22,30 @@ export const useCustomers = (
   const [totalPages, setTotalPages] = useState<number>(1)
   const [currentPage, setCurrentPage] = useState<number>(initialPage)
 
-  const fetchCustomers = useCallback(async () => {
-    setLoading(true)
+  const fetchCustomers = useCallback(
+    async (searchTerm: string = '') => {
+      setLoading(true)
 
-    try {
-      await ErrorHandler.handle(
-        async () => {
-          const response = await fetch(
-            `/api/customers?page=${currentPage}&limit=${limit}`,
-          )
-          if (!response.ok) {
-            throw new Error(`Failed to fetch customers: ${response.status}`)
-          }
+      try {
+        const response = await fetch(
+          `/api/customers?page=${currentPage}&limit=${limit}&search=${searchTerm}`,
+        )
+        if (!response.ok) {
+          throw new Error(`Failed to fetch customers: ${response.status}`)
+        }
 
-          const {data, meta} = await response.json()
+        const {data, meta} = await response.json()
 
-          setCustomers(data)
-          setTotalPages(meta?.totalPages || 1)
-        },
-        {
-          context: 'useCustomers',
-        },
-      )
-    } finally {
-      setLoading(false)
-    }
-  }, [currentPage, limit])
+        setCustomers(data)
+        setTotalPages(meta?.totalPages || 1)
+      } catch (error) {
+        console.error('Erro ao buscar clientes:', error)
+      } finally {
+        setLoading(false)
+      }
+    },
+    [currentPage, limit],
+  )
 
   useEffect(() => {
     fetchCustomers()
@@ -62,5 +60,12 @@ export const useCustomers = (
     [totalPages],
   )
 
-  return {customers, loading, totalPages, currentPage, setPage}
+  const searchCustomers = useCallback(
+    (term: string) => {
+      fetchCustomers(term)
+    },
+    [fetchCustomers],
+  )
+
+  return {customers, loading, totalPages, currentPage, setPage, searchCustomers}
 }
