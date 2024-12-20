@@ -3,12 +3,11 @@ import {NextResponse} from 'next/server'
 import {cancelCarnet} from '@/utils/efipay'
 import {ErrorHandler} from '@/utils/errorHandler'
 
-interface RequestParams {
-  params: {id: string}
-}
-
-export async function PUT(request: Request, {params}: RequestParams) {
-  const {id: carnetId} = params
+export async function PUT(
+  request: Request,
+  {params}: {params: {carnetId: string}},
+) {
+  const {carnetId} = params
 
   if (!carnetId) {
     return NextResponse.json(
@@ -27,7 +26,7 @@ export async function PUT(request: Request, {params}: RequestParams) {
       )
     },
     {
-      context: `PUT /api/carnet/${carnetId}`,
+      context: `PUT /api/carnet/${carnetId}/cancel`,
       defaultErrorMessage: 'Erro ao cancelar o carnê.',
       returnHttpResponse: true,
     },
