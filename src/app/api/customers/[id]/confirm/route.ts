@@ -7,7 +7,6 @@ export async function PUT(
   {params}: {params: Promise<{id: string}>},
 ): Promise<Response> {
   try {
-    // Aguarde o parâmetro dinâmico `id` ser resolvido.
     const {id} = await params
 
     if (!id) {
@@ -17,10 +16,9 @@ export async function PUT(
       )
     }
 
-    // Atualize o cliente no banco de dados para confirmar.
     const updatedCustomer = await prisma.customer.update({
       where: {id},
-      data: {status: 'CONFIRMED'}, // Certifique-se de usar um valor válido para o status.
+      data: {status: 'CONFIRMED'},
     })
 
     return NextResponse.json(updatedCustomer, {status: 200})

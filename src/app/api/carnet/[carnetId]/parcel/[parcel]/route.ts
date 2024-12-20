@@ -8,10 +8,8 @@ export async function PUT(
   request: Request,
   context: {params: Promise<{carnetId: string; parcel: string}>},
 ): Promise<Response> {
-  // Aguarde a resolução de `params` para acessar seus valores
   const {carnetId, parcel} = await context.params
 
-  // Validação dos parâmetros
   if (!carnetId || !parcel) {
     return NextResponse.json(
       {error: 'Os parâmetros "carnetId" e "parcel" são obrigatórios.'},
@@ -20,13 +18,10 @@ export async function PUT(
   }
 
   try {
-    // Extrai o corpo da requisição
     const {expire_at} = await request.json()
 
-    // Obtém o token de autorização
     const token = await getAuthorizationToken()
 
-    // Configura a URL da API e os headers
     const API_BASE_URL = env.EFI_API_BASE_URL
 
     const response = await axios.put(

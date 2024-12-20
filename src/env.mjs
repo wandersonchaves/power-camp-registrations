@@ -13,7 +13,7 @@ export const env = createEnv({
     EFI_CLIENT_SECRET: z.string().min(1),
     EFI_PIX_CERT: z.string().min(1),
     EFI_API_BASE_URL: z.string().min(1),
-    GOOGLE_SITE_VERIFICATION_ID: z.string().min(1).optional(), // Adicionado
+    GOOGLE_SITE_VERIFICATION_ID: z.string().min(1).optional(),
   },
   client: {
     NEXT_PUBLIC_EFI_CLIENT_ID: z.string().min(1),
@@ -32,6 +32,6 @@ export const env = createEnv({
     NEXT_PUBLIC_EFI_CLIENT_ID: process.env.NEXT_PUBLIC_EFI_CLIENT_ID,
     NEXT_PUBLIC_EFI_CLIENT_SECRET: process.env.NEXT_PUBLIC_EFI_CLIENT_SECRET,
     EFI_API_BASE_URL: process.env.EFI_API_BASE_URL,
-    GOOGLE_SITE_VERIFICATION_ID: process.env.GOOGLE_SITE_VERIFICATION_ID, // Adicionado
+    GOOGLE_SITE_VERIFICATION_ID: process.env.GOOGLE_SITE_VERIFICATION_ID,
   },
 })
