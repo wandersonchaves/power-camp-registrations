@@ -6,10 +6,10 @@ import {getAuthorizationToken} from '@/utils/efipay'
 
 export async function GET(
   _req: Request,
-  {params}: {params: {carnetId: string}},
+  context: {params: Promise<{carnetId: string}>},
 ): Promise<Response> {
   try {
-    const {carnetId} = await params
+    const {carnetId} = await context.params // Aguardar a resolução do `params`
 
     if (!carnetId) {
       return NextResponse.json(
@@ -27,7 +27,7 @@ export async function GET(
       },
     })
 
-    return NextResponse.json(response.data)
+    return NextResponse.json(response.data, {status: 200})
   } catch (error) {
     console.error('Erro ao buscar detalhes do carnê:', error)
 
