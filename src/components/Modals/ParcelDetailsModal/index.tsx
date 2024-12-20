@@ -1,4 +1,4 @@
-import {FC, useEffect, useState} from 'react'
+import {FC, useCallback, useEffect, useState} from 'react'
 import axios from 'axios'
 
 import {Button} from '@/components/ui/button'
@@ -34,12 +34,10 @@ const ParcelDetailsModal: FC<ParcelDetailsModalProps> = ({
   const [parcels, setParcels] = useState<Parcel[]>([])
   const [loading, setLoading] = useState(false)
 
-  const fetchParcels = async () => {
+  const fetchParcels = useCallback(async () => {
     try {
       setLoading(true)
       const response = await axios.get(`/api/carnet/${carnetId}/details`)
-
-      console.log('🚀 ~ fetchParcels ~ response:', response)
       const fetchedParcels =
         response.data?.data?.charges.map((charge: Parcel) => ({
           charge_id: charge.charge_id,
@@ -50,7 +48,6 @@ const ParcelDetailsModal: FC<ParcelDetailsModalProps> = ({
           pdf: charge.pdf,
           pix: charge.pix,
         })) || []
-
       setParcels(fetchedParcels)
     } catch (error) {
       console.error('Erro ao buscar parcelas:', error)
@@ -58,7 +55,7 @@ const ParcelDetailsModal: FC<ParcelDetailsModalProps> = ({
     } finally {
       setLoading(false)
     }
-  }
+  }, [carnetId])
 
   const handleDateChange = async (parcel: number, newDate: string) => {
     if (!carnetId || !parcel || !newDate) {
@@ -94,7 +91,7 @@ const ParcelDetailsModal: FC<ParcelDetailsModalProps> = ({
     if (isOpen) {
       fetchParcels()
     }
-  }, [isOpen, carnetId])
+  }, [isOpen, fetchParcels])
 
   return (
     <Modal
