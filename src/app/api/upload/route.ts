@@ -1,4 +1,3 @@
-import {NextResponse} from 'next/server'
 import {getServerSession} from 'next-auth/next'
 import * as XLSX from 'xlsx'
 
@@ -15,19 +14,15 @@ interface CustomerRow {
   ENDEREÇO?: string
   CEP?: string | number
   'NOME COMPLETO DO CÔNJUGE'?: string
-  Pontuação?: number | string
-  'Carimbo de data/hora'?: string
 }
 
-function sanitizeCpf(cpf: unknown): string {
+function sanitizeCpf(cpf: unknown): string | null {
   if (typeof cpf === 'number') {
     cpf = cpf.toString()
   }
-
   if (typeof cpf !== 'string' || !cpf) {
-    return ''
+    return null
   }
-
   return cpf.replace(/\D/g, '')
 }
 
@@ -36,22 +31,23 @@ export async function POST(req: Request) {
     async () => {
       const session = await getServerSession(authOptions)
 
-      if (!session || !session.user || !session.user.id) {
-        return NextResponse.json(
-          {message: 'Usuário não autenticado ou sessão inválida.'},
-          {status: 401},
+      if (!session?.user?.id) {
+        return new Response(
+          JSON.stringify({
+            message: 'Usuário não autenticado ou sessão inválida.',
+          }),
+          {status: 401, headers: {'Content-Type': 'application/json'}},
         )
       }
 
       const userId = session.user.id
-
       const formData = await req.formData()
       const file = formData.get('file') as File
 
       if (!file) {
-        return NextResponse.json(
-          {message: 'Nenhum arquivo foi enviado.'},
-          {status: 400},
+        return new Response(
+          JSON.stringify({message: 'Nenhum arquivo foi enviado.'}),
+          {status: 400, headers: {'Content-Type': 'application/json'}},
         )
       }
 
@@ -61,73 +57,53 @@ export async function POST(req: Request) {
       const data = XLSX.utils.sheet_to_json<CustomerRow>(sheet)
 
       if (!Array.isArray(data) || data.length === 0) {
-        return NextResponse.json(
-          {message: 'O arquivo está vazio ou possui um formato inválido.'},
-          {status: 400},
+        return new Response(
+          JSON.stringify({
+            message: 'O arquivo está vazio ou possui um formato inválido.',
+          }),
+          {status: 400, headers: {'Content-Type': 'application/json'}},
         )
       }
 
-      const validCustomers = data.map((row) => {
-        const rawCpf = row['CPF'] || null
-        const cpf = sanitizeCpf(rawCpf)
-
-        const isCpfValid = cpf && /^\d{11}$/.test(cpf)
+      const filteredCustomers = data.map((row) => {
+        const cpf = sanitizeCpf(row.CPF)
 
         return {
           name: row['NOME COMPLETO'] || 'Nome não informado',
-          cpf: isCpfValid ? cpf : null,
+          cpf,
           birthDate: row['DATA DE NASCIMENTO']
             ? new Date(row['DATA DE NASCIMENTO'])
             : null,
           phone: row['TELEFONE/WHATS'] ? String(row['TELEFONE/WHATS']) : null,
           email: row['EMAIL DE CONTATO'] ?? null,
-          address: row['ENDEREÇO'] ? String(row['ENDEREÇO']) : null,
-          postalCode: row['CEP'] ? String(row['CEP']) : null,
+          address: row.ENDEREÇO ? String(row.ENDEREÇO) : null,
+          postalCode: row.CEP ? String(row.CEP) : null,
           spouseName: row['NOME COMPLETO DO CÔNJUGE'] ?? null,
           userId,
         }
-      })
-
-      const filteredCustomers = validCustomers.filter((customer) => {
-        if (!customer.cpf) {
-          console.warn(`Registro ignorado: CPF inválido para ${customer.name}`)
-          return false
-        }
-        return true
       })
 
       const results = []
       const errors = []
 
       for (const customer of filteredCustomers) {
-        if (!customer.cpf || customer.cpf.trim() === '') {
+        if (!customer.cpf || !/^\d{11}$/.test(customer.cpf)) {
           console.warn(`CPF inválido para o cliente: ${customer.name}`)
           continue
-        }
-
-        if (typeof customer.address !== 'string' && customer.address !== null) {
-          console.warn(`Endereço inválido para ${customer.name}`)
-          customer.address = null
         }
 
         try {
           const result = await prisma.customer.upsert({
             where: {cpf: customer.cpf},
             update: {
-              name: {set: customer.name},
-              birthDate: customer.birthDate
-                ? {set: customer.birthDate}
-                : undefined,
-              phone: customer.phone ? {set: customer.phone} : undefined,
-              email: customer.email ? {set: customer.email} : undefined,
-              address: customer.address ? {set: customer.address} : undefined,
-              postalCode: customer.postalCode
-                ? {set: customer.postalCode}
-                : undefined,
-              spouseName: customer.spouseName
-                ? {set: customer.spouseName}
-                : undefined,
-              userId: {set: customer.userId},
+              name: customer.name,
+              birthDate: customer.birthDate || undefined,
+              phone: customer.phone || undefined,
+              email: customer.email || undefined,
+              address: customer.address || undefined,
+              postalCode: customer.postalCode || undefined,
+              spouseName: customer.spouseName || undefined,
+              userId,
             },
             create: {
               name: customer.name,
@@ -138,7 +114,7 @@ export async function POST(req: Request) {
               address: customer.address,
               postalCode: customer.postalCode,
               spouseName: customer.spouseName,
-              userId: customer.userId,
+              userId,
               createdAt: new Date(),
             },
           })
@@ -146,7 +122,6 @@ export async function POST(req: Request) {
           results.push(result)
         } catch (error) {
           console.error('Erro ao salvar registro:', customer, error)
-
           errors.push({
             customer,
             error: error instanceof Error ? error.message : 'Erro desconhecido',
@@ -154,15 +129,16 @@ export async function POST(req: Request) {
         }
       }
 
-      return NextResponse.json({
-        message: 'Processamento concluído',
-        successCount: results.length,
-        errorCount: errors.length,
-        errors,
-      })
+      return new Response(
+        JSON.stringify({
+          message: 'Processamento concluído',
+          successCount: results.length,
+          errorCount: errors.length,
+          errors,
+        }),
+        {status: 200, headers: {'Content-Type': 'application/json'}},
+      )
     },
-    {
-      context: 'POST /api/upload',
-    },
+    {context: 'POST /api/upload'},
   )
 }
