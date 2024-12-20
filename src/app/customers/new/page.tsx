@@ -1,7 +1,25 @@
 'use client'
 
 import {useState} from 'react'
+import {CustomerStatusEnum} from '@prisma/client'
 import {useRouter} from 'next/navigation'
+
+const getStatusLabel = (status: CustomerStatusEnum): string => {
+  switch (status) {
+    case CustomerStatusEnum.WAITING_LIST:
+      return 'Lista de Espera'
+    case CustomerStatusEnum.CONFIRMED:
+      return 'Confirmado'
+    case CustomerStatusEnum.CANCELED:
+      return 'Cancelado'
+    case CustomerStatusEnum.INACTIVE:
+      return 'Inativo'
+    case CustomerStatusEnum.ACTIVE:
+      return 'Ativo'
+    default:
+      return 'Desconhecido'
+  }
+}
 
 const NewCustomer = () => {
   const router = useRouter()
@@ -15,11 +33,12 @@ const NewCustomer = () => {
     address: '',
     postalCode: '',
     spouseName: '',
-    status: 'pending',
+    status: 'WAITING_LIST',
   })
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const statusOptions = Object.values(CustomerStatusEnum)
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
@@ -209,9 +228,14 @@ const NewCustomer = () => {
               onChange={handleInputChange}
               className="w-full rounded border px-3 py-2"
             >
-              <option value="pending">Pendente</option>
-              <option value="confirmed">Confirmado</option>
-              <option value="waiting_list">Lista de Espera</option>
+              {statusOptions.map((status) => (
+                <option
+                  key={status}
+                  value={status}
+                >
+                  {getStatusLabel(status)}
+                </option>
+              ))}
             </select>
           </div>
           <div>{error && <p className="text-red-500">{error}</p>}</div>

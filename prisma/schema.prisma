@@ -63,21 +63,29 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
+enum CustomerStatusEnum {
+  WAITING_LIST
+  CONFIRMED
+  CANCELED
+  INACTIVE
+  ACTIVE
+}
+
 model Customer {
-  id              String    @id @default(cuid())
+  id              String             @id @default(cuid())
   name            String
-  cpf             String    @unique
+  cpf             String             @unique
   birthDate       DateTime?
   phone           String?
   email           String?
   address         String?
   postalCode      String?
   spouseName      String?
-  status          String    @default("pending")
-  carnetGenerated Boolean   @default(false)
+  status          CustomerStatusEnum @default(WAITING_LIST)
+  carnetGenerated Boolean            @default(false)
 
   userId  String
-  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id])
   carnets Carnet[]
 
   createdAt DateTime @default(now())
@@ -85,44 +93,37 @@ model Customer {
 }
 
 model Carnet {
-  id String @id @default(cuid())
-
-  customer   Customer @relation(fields: [customerId], references: [id])
+  id         String   @id @default(cuid())
   customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
 
-  carnetId   String  @unique
+  carnetId   Int      @unique
   status     String
-  repeats    Int
-  value      Int
   cover      String
   link       String
-  carnetLink String?
-  pdf        String
+  carnetLink String
+  repeats    Int
+  value      Int
+  customId   String?
+  charges    Charge[]
 
   createdAt DateTime @default(now())
-  charges   Charge[]
-
-  history Json
+  updatedAt DateTime @updatedAt
 }
 
 model Charge {
-  id String @id @default(cuid())
+  id       String @id @default(cuid())
+  carnetId Int
+  carnet   Carnet @relation(fields: [carnetId], references: [carnetId])
 
-  carnet   Carnet @relation(fields: [carnetId], references: [id])
-  carnetId String
-
-  chargeId   String @unique
-  status     String
-  url        String
-  barcode    String
-  pdf        String
-  pixQrCode  String
-  pixQrImage String
+  chargeId   Int      @unique
   parcel     Int
+  status     String
   value      Int
+  expireAt   DateTime
+  url        String
+  parcelLink String
 
-  expireAt  DateTime
   createdAt DateTime @default(now())
-
-  configurations Json
+  updatedAt DateTime @updatedAt
 }

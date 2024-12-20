@@ -3,8 +3,7 @@ import EfiPay from 'sdk-typescript-apis-efi'
 import {saveCarnetData} from './carnetService'
 
 import efiConfig from '@/config/efiConfig'
-import type {CustomerData} from '@/types/Carnet'
-import {logError, logSuccess} from '@/utils/logger'
+import type {CustomerData} from '@/types/Customer'
 import {mapEfiPayDataToCarnet} from '@/utils/mappers'
 import {sanitizePhoneNumber} from '@/utils/phoneUtils'
 
@@ -16,7 +15,6 @@ export const createCarnet = async (body: {
   expire_at: string
   repeats: number
   split_items?: boolean
-  configurations?: {fine?: number; interest?: number}
   message?: string
 }) => {
   const sanitizedPhone = sanitizePhoneNumber(body.customer.phone_number)
@@ -31,8 +29,6 @@ export const createCarnet = async (body: {
       {...body, customer: {...body.customer, phone_number: sanitizedPhone}},
     )
 
-    logSuccess('Carnê criado com sucesso:', JSON.stringify(response, null, 2))
-
     const carnetData = response.data
 
     if (!carnetData?.charges) {
@@ -44,7 +40,7 @@ export const createCarnet = async (body: {
 
     return response
   } catch (error: unknown) {
-    logError('Erro ao criar o Carnê:', error)
+    console.error('Erro ao criar o Carnê:', error)
     throw new Error('Erro ao criar o Carnê')
   }
 }

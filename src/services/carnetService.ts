@@ -1,15 +1,17 @@
 import {prisma} from '@/lib/prisma'
-import {Carnet, type CustomerData} from '@/types/Carnet'
+import type {Carnet} from '@/types/Carnet'
+import type {CustomerData} from '@/types/Customer'
+import {ErrorHandler} from '@/utils/errorHandler'
 
 export const saveCarnetData = async (
   carnet: Carnet,
   customer: CustomerData,
 ) => {
-  if (!carnet || !customer) {
-    throw new Error('Carnet ou Customer não podem ser nulos.')
-  }
+  return ErrorHandler.handle(async () => {
+    if (!carnet || !customer) {
+      throw new Error('Carnet ou Customer não podem ser nulos.')
+    }
 
-  try {
     const existingCustomer = await prisma.customer.findUnique({
       where: {cpf: customer.cpf},
     })
@@ -23,7 +25,17 @@ export const saveCarnetData = async (
       data: {carnetGenerated: true},
     })
 
-    const carnetRecord = await prisma.carnet.upsert({
+    const normalizedCharges = carnet.charges.map((charge) => ({
+      chargeId: charge.chargeId,
+      parcel: charge.parcel,
+      status: charge.status,
+      value: charge.value,
+      expireAt: charge.expireAt,
+      url: charge.url,
+      parcelLink: charge.parcelLink,
+    }))
+
+    return prisma.carnet.upsert({
       where: {carnetId: carnet.carnetId},
       create: {
         carnetId: carnet.carnetId,
@@ -32,27 +44,10 @@ export const saveCarnetData = async (
         value: carnet.value,
         cover: carnet.cover,
         link: carnet.link,
-        carnetLink: carnet.carnetLink ?? '',
-        pdf: JSON.stringify(carnet.pdf),
-        createdAt: carnet.createdAt || new Date(),
+        carnetLink: carnet.carnetLink,
         customerId: existingCustomer.id,
-        history: JSON.stringify(carnet.history || []),
         charges: {
-          create: Array.isArray(carnet.charges)
-            ? carnet.charges.map((charge) => ({
-                chargeId: charge.chargeId,
-                parcel: charge.parcel,
-                status: charge.status,
-                value: charge.value,
-                expireAt: charge.expireAt,
-                url: charge.url,
-                pdf: charge.pdf,
-                barcode: charge.barcode,
-                pixQrCode: charge.pixQrCode || '',
-                pixQrImage: charge.pixQrImage || '',
-                configurations: JSON.stringify(charge.configurations || {}),
-              }))
-            : [],
+          create: normalizedCharges,
         },
       },
       update: {
@@ -60,15 +55,8 @@ export const saveCarnetData = async (
         value: carnet.value,
         cover: carnet.cover,
         link: carnet.link,
-        carnetLink: carnet.carnetLink ?? '',
-        pdf: JSON.stringify(carnet.pdf),
-        history: JSON.stringify(carnet.history || []),
+        carnetLink: carnet.carnetLink,
       },
     })
-
-    return carnetRecord
-  } catch (error) {
-    console.error('Erro ao salvar dados do carnê:', error)
-    throw new Error('Erro ao salvar dados no banco de dados.')
-  }
+  })
 }

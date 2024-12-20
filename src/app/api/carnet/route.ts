@@ -1,36 +1,47 @@
-import {NextResponse} from 'next/server'
-
 import {saveCarnetData} from '@/services/carnetService'
 import {createCarnet} from '@/services/efipayService'
-import {logError} from '@/utils/logger'
+import {ErrorHandler} from '@/utils/errorHandler'
 import {mapEfiPayDataToCarnet} from '@/utils/mappers'
 
-export async function POST(req: Request) {
-  try {
-    const body = await req.json()
-    const carnetResponse = await createCarnet(body)
+export async function POST(req: Request): Promise<Response> {
+  const response = await ErrorHandler.handle(
+    async () => {
+      const body = await req.json()
 
-    const carnet = mapEfiPayDataToCarnet(carnetResponse.data, body.customerId)
+      if (!body.customer || typeof body.customer !== 'object') {
+        return new Response(
+          JSON.stringify({
+            message: 'customer é obrigatório e deve ser um objeto válido.',
+          }),
+          {status: 400, headers: {'Content-Type': 'application/json'}},
+        )
+      }
 
-    await saveCarnetData(carnet, body.customer)
+      const carnetResponse = await createCarnet(body)
+      const carnet = mapEfiPayDataToCarnet(carnetResponse.data, body.customerId)
+      const carnetRecord = await saveCarnetData(carnet, body.customer)
 
-    return NextResponse.json({
-      message: 'Carnet gerado com sucesso',
-      data: carnet,
-    })
-  } catch (error: unknown) {
-    if (error instanceof Error) {
-      logError('Erro ao gerar o Carnet:', error.message)
-      return NextResponse.json(
-        {message: 'Erro ao gerar o Carnet', error: error.message},
-        {status: 500},
+      return new Response(
+        JSON.stringify({
+          message: 'Carnê gerado com sucesso',
+          data: carnetRecord,
+        }),
+        {status: 201, headers: {'Content-Type': 'application/json'}},
       )
-    }
+    },
+    {
+      context: 'POST /api/carnet',
+    },
+  )
 
-    logError('Erro desconhecido:', error)
-    return NextResponse.json(
-      {message: 'Erro desconhecido ao gerar o Carnet'},
-      {status: 500},
+  // Garantir que sempre retornamos um Response
+  return (
+    response ||
+    new Response(
+      JSON.stringify({
+        message: 'Erro inesperado ocorreu.',
+      }),
+      {status: 500, headers: {'Content-Type': 'application/json'}},
     )
-  }
+  )
 }
