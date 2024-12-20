@@ -6,12 +6,10 @@ import {getAuthorizationToken} from '@/utils/efipay'
 
 export async function GET(
   _req: Request,
-  {params}: {params: Promise<{carnetId: string}>},
+  {params}: {params: {carnetId: string}},
 ): Promise<Response> {
   try {
-    const {carnetId} = await params // Aguardar o objeto params
-
-    console.log('🚀 ~ carnetId:', carnetId)
+    const {carnetId} = await params
 
     if (!carnetId) {
       return NextResponse.json(
@@ -21,9 +19,7 @@ export async function GET(
     }
 
     const token = await getAuthorizationToken()
-    console.log('🚀 ~ token:', token)
     const API_BASE_URL = env.EFI_API_BASE_URL
-    console.log('🚀 ~ API_BASE_URL:', API_BASE_URL)
 
     const response = await axios.get(`${API_BASE_URL}/carnet/${carnetId}`, {
       headers: {
@@ -31,34 +27,19 @@ export async function GET(
       },
     })
 
-    return NextResponse.json(response.data, {status: 200})
+    return NextResponse.json(response.data)
   } catch (error) {
-    if (error instanceof AxiosError) {
-      console.error('Erro ao buscar detalhes do carnê (Axios):', {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
-      })
+    console.error('Erro ao buscar detalhes do carnê:', error)
 
+    if (error instanceof AxiosError) {
       return NextResponse.json(
-        {message: 'Erro ao buscar detalhes do carnê.', details: error.message},
+        {
+          message: 'Erro ao buscar detalhes do carnê.',
+          details: error.message,
+        },
         {status: error.response?.status || 500},
       )
     }
-
-    if (error instanceof Error) {
-      console.error('Erro genérico:', error.message)
-
-      return NextResponse.json(
-        {
-          message: 'Erro inesperado ao buscar detalhes do carnê.',
-          details: error.message,
-        },
-        {status: 500},
-      )
-    }
-
-    console.error('Erro desconhecido:', error)
 
     return NextResponse.json(
       {message: 'Erro desconhecido ao buscar detalhes do carnê.'},

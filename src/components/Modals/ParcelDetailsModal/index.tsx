@@ -35,11 +35,17 @@ const ParcelDetailsModal: FC<ParcelDetailsModalProps> = ({
   const [loading, setLoading] = useState(false)
 
   const fetchParcels = useCallback(async () => {
+    if (!carnetId) {
+      console.error('Carnet ID inválido')
+      return
+    }
+
+    setLoading(true)
+
     try {
-      setLoading(true)
-      const response = await axios.get(`/api/carnet/${carnetId}/details`)
+      const {data} = await axios.get(`/api/carnet/${carnetId}/details`)
       const fetchedParcels =
-        response.data?.data?.charges.map((charge: Parcel) => ({
+        data?.charges?.map((charge: Parcel) => ({
           charge_id: charge.charge_id,
           parcel: charge.parcel,
           expire_at: charge.expire_at,
@@ -48,6 +54,7 @@ const ParcelDetailsModal: FC<ParcelDetailsModalProps> = ({
           pdf: charge.pdf,
           pix: charge.pix,
         })) || []
+
       setParcels(fetchedParcels)
     } catch (error) {
       console.error('Erro ao buscar parcelas:', error)
@@ -59,7 +66,6 @@ const ParcelDetailsModal: FC<ParcelDetailsModalProps> = ({
 
   const handleDateChange = async (parcel: number, newDate: string) => {
     if (!carnetId || !parcel || !newDate) {
-      console.error('Dados inválidos para atualização da parcela.')
       alert('Erro: Dados inválidos para atualizar a data de vencimento.')
       return
     }
@@ -74,9 +80,8 @@ const ParcelDetailsModal: FC<ParcelDetailsModalProps> = ({
 
       if (response.status === 200 || response.status === 204) {
         alert('Data de vencimento atualizada com sucesso!')
-        fetchParcels()
+        await fetchParcels() // Recarregar parcelas após atualização.
       } else {
-        console.warn('Resposta inesperada ao atualizar a parcela:', response)
         alert('Erro ao atualizar a data de vencimento. Tente novamente.')
       }
     } catch (error) {
@@ -88,9 +93,7 @@ const ParcelDetailsModal: FC<ParcelDetailsModalProps> = ({
   }
 
   useEffect(() => {
-    if (isOpen) {
-      fetchParcels()
-    }
+    if (isOpen) fetchParcels()
   }, [isOpen, fetchParcels])
 
   return (
