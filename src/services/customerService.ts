@@ -64,7 +64,7 @@ export const getCustomers = async ({
         where: searchCondition,
         skip,
         take: limit,
-        orderBy: {createdAt: 'desc'},
+        orderBy: {name: 'asc'},
         include: {
           carnets: {
             include: {
