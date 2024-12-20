@@ -1,6 +1,6 @@
 import {NextResponse} from 'next/server'
 
-import {cancelCarnet, getAuthorizationToken} from '@/utils/efipay'
+import {cancelCarnet} from '@/utils/efipay'
 import {ErrorHandler} from '@/utils/errorHandler'
 
 interface RequestParams {
@@ -19,8 +19,7 @@ export async function PUT(request: Request, {params}: RequestParams) {
 
   return await ErrorHandler.handle(
     async () => {
-      const token = await getAuthorizationToken()
-      await cancelCarnet(carnetId, token)
+      await cancelCarnet(carnetId)
 
       return NextResponse.json(
         {message: 'Carnê cancelado com sucesso.'},

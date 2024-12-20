@@ -1,6 +1,7 @@
 import type {Charge} from './Charge'
 
 export interface Carnet {
+  id: string
   customerId: string
   carnetId: number
   status: string
