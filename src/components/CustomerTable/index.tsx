@@ -116,11 +116,9 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
                 {customer.carnets?.[0]?.charges?.map((charge) => (
                   <span
                     key={charge.chargeId}
-                    // className={`inline-block rounded px-3 py-1 text-xs font-medium ${getColorForStatus(
-                    //   chargeStatuses[charge.chargeId] || 'Desconhecido',
-                    // )}`}
+                    className={`inline-block rounded px-3 py-1 text-xs font-medium `}
                   >
-                    Tem parcelas
+                    {/* ${getColorForStatus(chargeStatuses[charge.chargeId] || 'Desconhecido',)} */}
                     {charge.parcel}
                   </span>
                 )) || <span className="text-gray-500">Sem parcelas</span>}
