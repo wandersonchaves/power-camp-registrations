@@ -20,6 +20,7 @@ export const mapEfiPayDataToCarnet = (
     : []
 
   return {
+    id: data.id,
     carnetId: data.carnet_id,
     customerId,
     status: data.status || 'pending',

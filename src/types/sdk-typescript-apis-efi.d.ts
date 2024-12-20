@@ -17,6 +17,7 @@ declare module 'sdk-typescript-apis-efi' {
   }
 
   export interface CarnetEfiData {
+    id: string
     carnet_id: number
     status: string
     cover: string
