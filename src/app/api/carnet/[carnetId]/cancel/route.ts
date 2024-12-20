@@ -5,9 +5,9 @@ import {ErrorHandler} from '@/utils/errorHandler'
 
 export async function PUT(
   request: Request,
-  {params}: {params: Record<string, string>}, // Atualização do tipo
+  {params}: {params: Promise<{carnetId: string}>}, // Correção do tipo
 ) {
-  const carnetId = params.carnetId
+  const {carnetId} = await params // Resolvido como Promise
 
   if (!carnetId) {
     return NextResponse.json(
