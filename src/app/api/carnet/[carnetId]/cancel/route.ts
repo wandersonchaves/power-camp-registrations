@@ -5,9 +5,9 @@ import {ErrorHandler} from '@/utils/errorHandler'
 
 export async function PUT(
   request: Request,
-  {params}: {params: {carnetId: string}},
+  {params}: {params: Record<string, string>}, // Atualização do tipo
 ) {
-  const {carnetId} = params
+  const carnetId = params.carnetId
 
   if (!carnetId) {
     return NextResponse.json(
