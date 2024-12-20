@@ -46,7 +46,7 @@ const ParcelDetailsModal: FC<ParcelDetailsModalProps> = ({
     try {
       const {data} = await axios.get(`/api/carnet/${carnetId}/details`)
       const fetchedParcels =
-        data?.charges?.map((charge: Parcel) => ({
+        data?.data?.charges?.map((charge: Parcel) => ({
           charge_id: charge.charge_id,
           parcel: charge.parcel,
           expire_at: charge.expire_at,
