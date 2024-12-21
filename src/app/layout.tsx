@@ -36,7 +36,7 @@ export const generateMetadata = (): Metadata => ({
     siteName: siteConfig.title(),
     images: '/opengraph-image.png',
     type: 'website',
-    locale: languageTag(),
+    locale: languageTag() || 'en',
   },
   twitter: {
     card: 'summary_large_image',
@@ -49,7 +49,7 @@ export const generateMetadata = (): Metadata => ({
 const RootLayout = ({children}: PropsWithChildren) => {
   return (
     <html
-      lang={languageTag()}
+      lang={languageTag() || 'en'}
       suppressHydrationWarning
     >
       <body className={cn('min-h-screen font-sans', fonts)}>
