@@ -3,7 +3,6 @@ import EfiPay from 'sdk-typescript-apis-efi'
 import {saveCarnetData} from './carnetService'
 
 import efiConfig from '@/config/efiConfig'
-import type {CustomerData} from '@/types/Customer'
 import {mapEfiPayDataToCarnet} from '@/utils/mappers'
 import {sanitizePhoneNumber} from '@/utils/phoneUtils'
 
@@ -11,7 +10,12 @@ const efipay = new EfiPay(efiConfig)
 
 export const createCarnet = async (body: {
   items: {name: string; value: number; amount: number}[]
-  customer: {name: string; cpf: string; phone_number: string}
+  customer: {
+    name: string
+    cpf: string
+    phone_number: string
+    email: string
+  }
   expire_at: string
   repeats: number
   split_items?: boolean
@@ -36,7 +40,7 @@ export const createCarnet = async (body: {
     }
 
     const carnet = mapEfiPayDataToCarnet(carnetData, 'customerId')
-    await saveCarnetData(carnet, body.customer as CustomerData)
+    await saveCarnetData(carnet, body.customer)
 
     return response
   } catch (error: unknown) {

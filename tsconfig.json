@@ -7,6 +7,7 @@
       "esnext"
     ],
     "types": [
+      "@types/node",
       "@testing-library/jest-dom"
     ],
     "allowJs": true,
@@ -53,5 +54,5 @@
   ],
   "exclude": [
     "node_modules"
-  ]
+  ],
 }
