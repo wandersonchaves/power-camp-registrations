@@ -11,7 +11,7 @@
     "format:write": "prettier --write \"**/*.{ts,tsx,mdx}\" --cache",
     "lint:fix": "next lint --fix",
     "lint": "next lint",
-    "postinstall": "paraglide-js compile --project ./project.inlang --outdir ./src/paraglide",
+    "postinstall": "paraglide-js compile --project ./project.inlang/settings.json --outdir ./src/paraglide",
     "prepare": "husky",
     "preview": "next build && next start",
     "prisma:generate": "prisma generate",
