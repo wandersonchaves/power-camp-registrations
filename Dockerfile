@@ -11,6 +11,9 @@ WORKDIR /app
 # Copiar arquivos do projeto
 COPY package.json pnpm-lock.yaml ./
 
+# Copie o diretório project.inlang para o ambiente de build
+COPY project.inlang ./project.inlang
+
 # Instalar dependências
 RUN pnpm install --frozen-lockfile
 
