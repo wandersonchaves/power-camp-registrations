@@ -35,7 +35,7 @@ const CustomersPage = () => {
   }
 
   const handleSearch = () => {
-    searchCustomers(searchTerm)
+    searchCustomers(searchTerm.trim())
   }
 
   const handleGenerateCarnet = async (customer: {
@@ -52,10 +52,9 @@ const CustomersPage = () => {
       console.error(`Telefone inválido: ${customer.phone}`)
       return
     }
+    setGeneratingCustomerId(customer.id)
 
     try {
-      setGeneratingCustomerId(customer.id)
-
       const response = await fetch('/api/carnet', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -75,13 +74,12 @@ const CustomersPage = () => {
         }),
       })
 
-      if (!response.ok) throw new Error('Erro ao gerar o carnê')
+      if (!response.ok) throw new Error('Erro ao gerar o carnê.')
 
-      await response.json()
       alert('Carnê gerado com sucesso!')
     } catch (error) {
-      alert('Erro ao gerar o carnê')
-      console.error('Erro ao gerar o carnê:', error)
+      console.error('Erro ao gerar carnê:', error)
+      alert('Erro ao gerar o carnê.')
     } finally {
       setGeneratingCustomerId(null)
     }
@@ -93,13 +91,9 @@ const CustomersPage = () => {
         method: 'PUT',
       })
 
-      if (!response.ok) {
-        throw new Error('Erro ao confirmar o cliente.')
-      }
+      if (!response.ok) throw new Error('Erro ao confirmar o cliente.')
 
-      const updatedCustomer = await response.json()
       alert('Cliente confirmado com sucesso!')
-      console.log('Cliente atualizado:', updatedCustomer)
     } catch (error) {
       console.error('Erro ao confirmar cliente:', error)
       alert('Erro ao confirmar cliente.')
@@ -107,7 +101,7 @@ const CustomersPage = () => {
   }
 
   if (loading) {
-    return <p>Carregando clientes...</p>
+    return <p>Carregando dados...</p>
   }
 
   return (

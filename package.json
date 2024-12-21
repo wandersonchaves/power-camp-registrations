@@ -17,7 +17,8 @@
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
     "prepare": "husky",
-    "postinstall": "paraglide-js compile --project ./project.inlang --outdir ./src/paraglide"
+    "postinstall": "paraglide-js compile --project ./project.inlang --outdir ./src/paraglide",
+    "seed": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' prisma/seed.ts"
   },
   "husky": {
     "hooks": {
@@ -29,6 +30,9 @@
       "eslint --cache --fix",
       "prettier --write"
     ]
+  },
+  "prisma": {
+    "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -66,7 +70,7 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.0.1",
     "@types/jest": "^29.5.14",
-    "@types/node": "^22.10.1",
+    "@types/node": "^22.10.2",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "@typescript-eslint/eslint-plugin": "^8.16.0",
@@ -88,6 +92,7 @@
     "prisma": "^6.0.1",
     "tailwindcss": "^3.4.15",
     "tailwindcss-animate": "^1.0.7",
-    "typescript": "^5"
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.2"
   }
 }

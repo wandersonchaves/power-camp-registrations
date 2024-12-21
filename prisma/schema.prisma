@@ -63,14 +63,6 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-enum CustomerStatusEnum {
-  WAITING_LIST
-  CONFIRMED
-  CANCELED
-  INACTIVE
-  ACTIVE
-}
-
 model Customer {
   id              String             @id @default(cuid())
   name            String
@@ -83,19 +75,17 @@ model Customer {
   spouseName      String?
   status          CustomerStatusEnum @default(WAITING_LIST)
   carnetGenerated Boolean            @default(false)
+  carnets         Carnet[]
 
-  userId  String
-  user    User     @relation(fields: [userId], references: [id])
-  carnets Carnet[]
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 }
 
 model Carnet {
-  id         String   @id @default(cuid())
-  customerId String
-  customer   Customer @relation(fields: [customerId], references: [id])
+  id String @id @default(cuid())
 
   carnetId   Int      @unique
   status     String
@@ -107,14 +97,15 @@ model Carnet {
   customId   String?
   charges    Charge[]
 
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 }
 
 model Charge {
-  id       String @id @default(cuid())
-  carnetId String
-  carnet   Carnet @relation(fields: [carnetId], references: [id])
+  id String @id @default(cuid())
 
   chargeId   Int      @unique
   parcel     Int
@@ -124,6 +115,17 @@ model Charge {
   url        String
   parcelLink String?  @default("")
 
+  carnetId String
+  carnet   Carnet @relation(fields: [carnetId], references: [id])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
+}
+
+enum CustomerStatusEnum {
+  WAITING_LIST
+  CONFIRMED
+  CANCELED
+  INACTIVE
+  ACTIVE
 }
