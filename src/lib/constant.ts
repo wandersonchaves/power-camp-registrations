@@ -1,21 +1,21 @@
 import {env} from '@/env.mjs'
-import * as m from '@/paraglide/messages'
 
 export const siteConfig = {
-  title: m.meta_title,
-  description: m.meta_description,
-  keywords: () => [
-    m.meta_keyword_nextjs(),
-    m.meta_keyword_react(),
-    m.meta_keyword_nextjs_carnet(),
-    m.meta_keyword_nextjs_boilerplate(),
-    m.meta_keyword_carnet_template(),
-    m.meta_keyword_tailwindcss(),
-    m.meta_keyword_typescript(),
-    m.meta_keyword_shadcn_ui(),
-    m.meta_keyword_next_auth(),
-    m.meta_keyword_prisma(),
+  title: 'Next Carnet',
+  description:
+    'A Next.js carnet template, packed with features like TypeScript, Tailwind CSS, Next-auth, Eslint, testing tools and more. Jumpstart your project with efficiency and style.',
+  keywords: [
+    'Next.js',
+    'React',
+    'Next.js carnet',
+    'Next.js boilerplate',
+    'Carnet Template',
+    'Tailwind CSS',
+    'TypeScript',
+    'Shadcn/ui',
+    'Next-auth',
+    'Prisma',
   ],
-  url: () => env.APP_URL,
-  googleSiteVerificationId: () => env.GOOGLE_SITE_VERIFICATION_ID ?? '',
+  url: env.APP_URL,
+  googleSiteVerificationId: env.GOOGLE_SITE_VERIFICATION_ID ?? '',
 }

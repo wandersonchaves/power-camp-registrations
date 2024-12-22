@@ -5,7 +5,6 @@ import {useTheme} from 'next-themes'
 
 import {Icons} from '@/components/icons'
 import {Button} from '@/components/ui/button'
-import * as m from '@/paraglide/messages'
 
 type ThemeSwitcherProps = {
   className?: ComponentProps<'button'>['className']
@@ -19,7 +18,7 @@ export const ThemeSwitcher = ({className}: ThemeSwitcherProps) => {
       className={className}
       variant="secondary"
       size="icon"
-      aria-label={m.theme_toggle_label()}
+      aria-label="Rótulo de alternância do tema"
       onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
     >
       <Icons.Sun className="dark:hidden" />

@@ -1,4 +1,4 @@
-import type {CarnetEfiData} from 'sdk-typescript-apis-efi'
+import type {CarnetEfiData} from 'sdk-node-apis-efi'
 
 import type {Carnet} from '@/types/Carnet'
 import type {Charge} from '@/types/Charge'

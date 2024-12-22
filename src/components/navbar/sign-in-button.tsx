@@ -5,7 +5,6 @@ import {signIn} from 'next-auth/react'
 
 import {Icons} from '@/components/icons'
 import {Button} from '@/components/ui/button'
-import * as m from '@/paraglide/messages'
 
 export const SignInButton = () => {
   const [isPending, startTransition] = useTransition()
@@ -24,7 +23,7 @@ export const SignInButton = () => {
       disabled={isPending}
     >
       {isPending && <Icons.Loader className="mr-2 size-4 animate-spin" />}
-      {m.sign_in()}
+      Entrar
     </Button>
   )
 }
