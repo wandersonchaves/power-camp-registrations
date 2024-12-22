@@ -1,50 +1,34 @@
+import type {CreateChargeBody, EfiPayResponse} from 'sdk-node-apis-efi'
 import EfiPay from 'sdk-node-apis-efi'
 
-import {saveCarnetData} from './carnetService'
+import {toSnakeCase} from '@/utils/caseConverter'
+import {validateCreateChargeBody} from '@/utils/validators'
 
-import efiConfig from '@/config/efiConfig'
-import {mapEfiPayDataToCarnet} from '@/utils/mappers'
-import {sanitizePhoneNumber} from '@/utils/phoneUtils'
-
-const efipay = new EfiPay(efiConfig)
-
-export const createCarnet = async (body: {
-  items: {name: string; value: number; amount: number}[]
-  customer: {
-    name: string
-    cpf: string
-    phone_number: string
-    email: string
-  }
-  expire_at: string
-  repeats: number
-  split_items?: boolean
-  message?: string
-}) => {
-  const sanitizedPhone = sanitizePhoneNumber(body.customer.phone_number)
-
-  if (!sanitizedPhone) {
-    throw new Error('Número de telefone inválido.')
-  }
-
+export async function createCarnet(body: unknown): Promise<EfiPayResponse> {
   try {
-    const response = await efipay.createCarnet(
-      {},
-      {...body, customer: {...body.customer, phone_number: sanitizedPhone}},
+    validateCreateChargeBody(body)
+
+    const sanitizedBody = toSnakeCase<CreateChargeBody>(
+      body as CreateChargeBody,
     )
 
-    const carnetData = response.data
+    const efiPay = new EfiPay({
+      sandbox: process.env.EFI_SANDBOX === 'true',
+      client_id: process.env.EFI_CLIENT_ID || '',
+      client_secret: process.env.EFI_CLIENT_SECRET || '',
+      certificate: process.env.EFI_CERTIFICATE || '',
+    })
 
-    if (!carnetData?.charges) {
-      throw new Error('Dados do Carnê inválidos ou incompletos.')
+    const response = await efiPay.createCarnet({}, sanitizedBody)
+
+    if (!response || !response.data) {
+      console.error('Resposta inválida da API EfiPay:', response)
+      throw new Error('Resposta da API EfiPay inválida ou ausente.')
     }
 
-    const carnet = mapEfiPayDataToCarnet(carnetData, 'customerId')
-    await saveCarnetData(carnet, body.customer)
-
     return response
-  } catch (error: unknown) {
-    console.error('Erro ao criar o Carnê:', error)
-    throw new Error('Erro ao criar o Carnê')
+  } catch (error) {
+    console.error('Erro ao criar carnê via EfiPay:', error)
+    throw new Error('Erro ao criar o carnê. Verifique os dados fornecidos.')
   }
 }

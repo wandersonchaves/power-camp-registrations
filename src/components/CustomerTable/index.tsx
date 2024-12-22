@@ -3,7 +3,7 @@ import {CustomerStatusEnum} from '@prisma/client'
 
 import ParcelDetailsModal from '../Modals/ParcelDetailsModal'
 
-import type {Customer} from '@/types/Customer'
+import type {Customer} from '@/types'
 
 interface CustomerTableProps {
   customers: Customer[]

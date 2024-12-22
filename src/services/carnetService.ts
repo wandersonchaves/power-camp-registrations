@@ -1,12 +1,8 @@
 import {prisma} from '@/lib/prisma'
-import type {Carnet} from '@/types/Carnet'
-import type {CustomerData} from '@/types/Customer'
+import type {Carnet, Customer} from '@/types'
 import {ErrorHandler} from '@/utils/errorHandler'
 
-export const saveCarnetData = async (
-  carnet: Carnet,
-  customer: CustomerData,
-) => {
+export const saveCarnetData = async (carnet: Carnet, customer: Customer) => {
   return ErrorHandler.handle(async () => {
     if (!carnet || !customer) {
       throw new Error('Carnet ou Customer não podem ser nulos.')
@@ -25,15 +21,34 @@ export const saveCarnetData = async (
       data: {carnetGenerated: true},
     })
 
-    const normalizedCharges = carnet.charges.map((charge) => ({
-      chargeId: charge.chargeId,
-      parcel: charge.parcel,
-      status: charge.status,
-      value: charge.value,
-      expireAt: charge.expireAt,
-      url: charge.url,
-      parcelLink: charge.parcelLink,
-    }))
+    const normalizedCharges = carnet.charges.map((charge) => {
+      if (!charge || typeof charge !== 'object') {
+        throw new Error('Dados inválidos encontrados em charges.')
+      }
+
+      return {
+        chargeId: charge.chargeId,
+        parcel:
+          typeof charge.parcel === 'number'
+            ? charge.parcel
+            : parseInt(charge.parcel, 10),
+        status: charge.status,
+        value: charge.value,
+        expireAt: new Date(charge.expireAt),
+        url: charge.url,
+        parcelLink: charge.parcelLink || '',
+      }
+    })
+
+    // Validação adicional
+    if (!normalizedCharges || !Array.isArray(normalizedCharges)) {
+      throw new Error('Charges normalizados são inválidos.')
+    }
+
+    // Validação de objeto antes de processar
+    if (!normalizedCharges || !Array.isArray(normalizedCharges)) {
+      throw new Error('Charges normalizados são inválidos.')
+    }
 
     return prisma.carnet.upsert({
       where: {carnetId: carnet.carnetId},

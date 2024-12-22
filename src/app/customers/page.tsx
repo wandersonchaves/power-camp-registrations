@@ -13,7 +13,7 @@ import {
   TRAVEL_SERVICE_NAME,
 } from '@/config/constants'
 import {useCustomers} from '@/hooks/useCustomers'
-import type {Customer} from '@/types/Customer'
+import type {Customer} from '@/types'
 import {sanitizePhoneNumber} from '@/utils/phoneUtils'
 
 const CustomersPage = () => {

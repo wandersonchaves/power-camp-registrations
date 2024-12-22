@@ -94,7 +94,7 @@ model Carnet {
   carnetLink String
   repeats    Int
   value      Int
-  customId   String?
+  customId   String?  @default("")
   charges    Charge[]
 
   customerId String
