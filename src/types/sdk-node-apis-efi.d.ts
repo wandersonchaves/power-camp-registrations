@@ -56,8 +56,24 @@ declare module 'sdk-node-apis-efi' {
   }
 
   export interface EfiPayData {
-    carnetData: CarnetEfiData
-    chargeData: ChargeEfiData
+    carnet_id: number
+    status: string
+    cover: string
+    link: string
+    carnet_link: string
+    charges: Array<{
+      charge_id: number
+      parcel: number
+      status: string
+      value: number
+      expire_at: string
+      url: string
+      parcel_link: string
+    }>
+    pdf: {
+      carnet: string
+      cover: string
+    }
   }
 
   export default class EfiPay {

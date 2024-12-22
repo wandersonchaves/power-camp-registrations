@@ -2,7 +2,7 @@
 
 import {useCallback, useEffect, useState} from 'react'
 
-import type {Customer} from '@/types/Customer'
+import type {Customer} from '@/types'
 
 interface UseCustomersResult {
   customers: Customer[]

@@ -6,7 +6,7 @@ import {getAuthorizationToken} from '@/utils/efipay'
 
 export async function PUT(
   request: Request,
-  context: {params: Promise<{carnetId: string; parcel: string}>},
+  context: {params: Promise<{carnetId: string; parcel: number}>},
 ): Promise<Response> {
   const {carnetId, parcel} = await context.params
 

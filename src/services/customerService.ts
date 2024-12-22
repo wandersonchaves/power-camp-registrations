@@ -1,7 +1,7 @@
 import {Prisma} from '@prisma/client'
 
 import {prisma} from '@/lib/prisma'
-import type {Customer} from '@/types/Customer'
+import type {Carnet, Charge, Customer} from '@/types'
 
 interface GetCustomersParams {
   page?: number
@@ -16,6 +16,11 @@ interface GetCustomersResponse {
   totalPages: number
 }
 
+/**
+ * Normaliza os dados do cliente retornados pelo Prisma para alinhar com as tipagens esperadas.
+ * @param customer - Dados do cliente retornados pelo Prisma.
+ * @returns Cliente normalizado.
+ */
 const normalizeCustomer = (
   customer: Prisma.CustomerGetPayload<{
     include: {
@@ -38,15 +43,39 @@ const normalizeCustomer = (
   spouseName: customer.spouseName || undefined,
   status: customer.status,
   carnetGenerated: customer.carnetGenerated,
-  carnets: customer.carnets.map((carnet) => ({
-    ...carnet,
-    charges: carnet.charges.map((charge) => ({
-      ...charge,
-      parcelLink: charge.parcelLink || '',
-    })),
-  })),
+  carnets: customer.carnets.map(
+    (carnet): Carnet => ({
+      id: carnet.id,
+      customerId: customer.id,
+      carnetId: carnet.carnetId,
+      status: carnet.status,
+      cover: carnet.cover,
+      link: carnet.link,
+      carnetLink: carnet.carnetLink,
+      repeats: carnet.repeats,
+      value: carnet.value,
+      customId: carnet.customId || undefined,
+      createdAt: carnet.createdAt,
+      charges: carnet.charges.map(
+        (charge): Charge => ({
+          chargeId: charge.chargeId,
+          parcel: charge.parcel,
+          status: charge.status,
+          value: charge.value,
+          expireAt: charge.expireAt,
+          url: charge.url,
+          parcelLink: charge.parcelLink || '',
+        }),
+      ),
+    }),
+  ),
 })
 
+/**
+ * Obtém os clientes com paginação e condições de pesquisa.
+ * @param params - Parâmetros para buscar os clientes.
+ * @returns Dados dos clientes e informações de paginação.
+ */
 export const getCustomers = async ({
   page = 1,
   limit = 10,

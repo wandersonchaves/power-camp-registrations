@@ -1,36 +1,33 @@
-import type {CarnetEfiData} from 'sdk-node-apis-efi'
+import type {Carnet, CarnetEfiData} from '@/types'
 
-import type {Carnet} from '@/types/Carnet'
-import type {Charge} from '@/types/Charge'
-
-export const mapEfiPayDataToCarnet = (
+export function mapEfiPayDataToCarnet(
   data: CarnetEfiData,
   customerId: string,
-): Carnet => {
-  const charges: Charge[] = Array.isArray(data.charges)
-    ? data.charges.map((charge) => ({
-        chargeId: charge.charge_id,
-        parcel: Number(charge.parcel) || 0,
-        status: charge.status || 'unknown',
-        value: charge.value || 0,
-        expireAt: charge.expire_at ? new Date(charge.expire_at) : new Date(),
-        url: charge.url || '#',
-        parcelLink: charge.parcel_link || '#',
-      }))
-    : []
+): Carnet {
+  if (!data.id || !data.carnet_id || !data.charges) {
+    throw new Error('Dados do carnê incompletos ou inválidos.')
+  }
 
   return {
     id: data.id,
     carnetId: data.carnet_id,
     customerId,
-    status: data.status || 'pending',
-    cover: data.cover || '',
-    link: data.link || '',
-    carnetLink: data.carnet_link || '',
-    repeats: data.repeats || 1,
-    value: data.value || 0,
-    customId: data.custom_id ?? null,
-    createdAt: data.created_at ? new Date(data.created_at) : new Date(),
-    charges,
+    status: data.status,
+    cover: data.cover,
+    link: data.link,
+    carnetLink: data.carnet_link,
+    repeats: data.repeats,
+    value: data.value,
+    customId: data.custom_id ?? undefined,
+    createdAt: new Date(data.created_at),
+    charges: data.charges.map((charge) => ({
+      chargeId: charge.charge_id,
+      parcel: charge.parcel,
+      status: charge.status,
+      value: charge.value,
+      expireAt: charge.expire_at,
+      url: charge.url,
+      parcelLink: charge.parcel_link || '',
+    })),
   }
 }
