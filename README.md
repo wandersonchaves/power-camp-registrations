@@ -108,8 +108,6 @@ and open http://localhost:3000/ to see this app.
     ├── lib                         # Functions and utilities
     ├── styles                      # Styles folder
     ├── types                       # Type definitions
-    ├── messages                    # Messages for i18n
-    ├── paraglide                   # (generated) compiled i18n messages
     └── env.mjs                     # Env variables config file
 ```
 

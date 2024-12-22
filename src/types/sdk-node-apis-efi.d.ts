@@ -1,4 +1,4 @@
-declare module 'sdk-typescript-apis-efi' {
+declare module 'sdk-node-apis-efi' {
   interface EfiPayConfig {
     sandbox: boolean
     client_id: string
@@ -35,24 +35,29 @@ declare module 'sdk-typescript-apis-efi' {
     data: EfiPayData
   }
 
-  interface ChargeItemEfiData {
+  interface ChargeItem {
     name: string
     value: number
     amount: number
   }
 
-  interface CustomerEfiData {
+  interface CustomerData {
     name: string
     cpf: string
     phone_number: string
   }
 
-  interface CreateChargeBodyEfiData {
+  interface CreateChargeBody {
     items: ChargeItem[]
     customer: CustomerData
     expire_at: string
     repeats: number
     message?: string
+  }
+
+  export interface EfiPayData {
+    carnetData: CarnetEfiData
+    chargeData: ChargeEfiData
   }
 
   export default class EfiPay {
