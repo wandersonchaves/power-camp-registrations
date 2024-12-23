@@ -185,6 +185,10 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
       const isUnpaid = charge.status !== 'paid'
       return isOverdue && isUnpaid
     })
+    console.log(
+      '🚀 ~ overdueUnpaidCharges ~ overdueUnpaidCharges:',
+      overdueUnpaidCharges,
+    )
 
     if (overdueUnpaidCharges.length > 0) {
       return <span className="text-yellow-500">Inadimplente</span>
