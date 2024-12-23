@@ -1,4 +1,5 @@
 import {FC, useCallback, useEffect, useState} from 'react'
+import Link from 'next/link'
 
 import {Button} from '@/components/ui/button'
 import {Input} from '@/components/ui/input'
@@ -101,56 +102,81 @@ const ParcelDetailsModal: FC<ParcelDetailsModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
     >
-      <h2 className="mb-4 text-lg font-bold">Detalhes das Parcelas</h2>
+      <div className="flex items-center justify-between rounded-t border-b p-4 md:p-5 dark:border-gray-600">
+        <h2 className="text-4xl font-bold text-black dark:text-gray-800">
+          Detalhes das Parcelas
+        </h2>
+      </div>
       {loading && <p>Carregando...</p>}
       {!loading && parcels.length === 0 && <p>Nenhuma parcela encontrada.</p>}
-      <div className="space-y-4">
-        {parcels.map((parcel) => (
-          <div
-            key={parcel.charge_id}
-            className="flex items-center justify-between"
-          >
-            <span>
-              Parcela {parcel.parcel} -{' '}
-              {(() => {
-                switch (parcel.status) {
-                  case 'waiting':
-                    return <span className="text-yellow-500">Pendente</span>
-                  case 'paid':
-                    return <span className="text-green-500">Paga</span>
-                  case 'canceled':
-                    return <span className="text-red-500">Cancelada</span>
-                  case 'cancelled':
-                    return <span className="text-red-500">Cancelada</span>
-                  default:
-                    return (
-                      <span className="text-gray-500">Status Desconhecido</span>
-                    )
-                }
-              })()}
-            </span>
-            <Input
-              type="date"
-              defaultValue={parcel.expire_at.split('T')[0]}
-              onBlur={(e) => handleDateChange(parcel.parcel, e.target.value)}
-            />
-            <a
-              href={parcel.pdf?.charge}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-500 underline"
+      <div className="space-y-4 p-4 md:p-5">
+        <ul className="max-w-md divide-y divide-gray-200 dark:divide-gray-700">
+          {parcels.map((parcel) => (
+            <li
+              key={parcel.charge_id}
+              className="flex flex-col justify-between space-y-2 py-3 sm:flex-row sm:items-center sm:space-y-0 sm:py-4"
             >
-              Ver PDF
-            </a>
-          </div>
-        ))}
+              {/* Informações da parcela e status */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 rtl:space-x-reverse">
+                <span className="truncate text-sm font-medium text-gray-900 dark:text-white">
+                  Parcela {parcel.parcel}
+                </span>
+                <span className="text-sm font-medium">
+                  {(() => {
+                    switch (parcel.status) {
+                      case 'waiting':
+                        return <span className="text-yellow-500">Pendente</span>
+                      case 'paid':
+                        return <span className="text-green-500">Paga</span>
+                      case 'canceled':
+                      case 'cancelled':
+                        return <span className="text-red-500">Cancelada</span>
+                      default:
+                        return (
+                          <span className="text-gray-500">
+                            Status Desconhecido
+                          </span>
+                        )
+                    }
+                  })()}
+                </span>
+              </div>
+
+              {/* Input para alterar data */}
+              <div className="flex items-center">
+                <Input
+                  type="date"
+                  defaultValue={parcel.expire_at.split('T')[0]}
+                  onBlur={(e) =>
+                    handleDateChange(parcel.parcel, e.target.value)
+                  }
+                  className="text-sm text-gray-700 dark:text-white"
+                />
+              </div>
+
+              {/* Link para o PDF */}
+              <div className="flex items-center">
+                <Link
+                  href={parcel.pdf?.charge}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center text-sm font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-600"
+                >
+                  Ver PDF
+                </Link>
+              </div>
+            </li>
+          ))}
+        </ul>
       </div>
-      <Button
-        onClick={onClose}
-        className="mt-4"
-      >
-        Fechar
-      </Button>
+      <div className="flex items-center rounded-b border-t border-gray-200 p-4 md:p-5 dark:border-gray-600">
+        <Button
+          onClick={onClose}
+          className="mt-4"
+        >
+          Fechar
+        </Button>
+      </div>
     </Modal>
   )
 }
