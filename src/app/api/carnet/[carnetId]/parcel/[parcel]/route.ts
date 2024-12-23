@@ -1,8 +1,6 @@
-import axios from 'axios'
 import {NextResponse} from 'next/server'
 
-import {env} from '@/env.mjs'
-import {getAuthorizationToken} from '@/utils/efipay'
+import axiosEfi from '@/services/axiosEfi'
 
 export async function PUT(
   request: Request,
@@ -20,18 +18,10 @@ export async function PUT(
   try {
     const {expire_at} = await request.json()
 
-    const token = await getAuthorizationToken()
-
-    const API_BASE_URL = env.EFI_API_BASE_URL
-
-    const response = await axios.put(
-      `${API_BASE_URL}/carnet/${carnetId}/parcel/${parcel}`,
-      {expire_at},
+    const response = await axiosEfi.put(
+      `/carnet/${carnetId}/parcel/${parcel}`,
       {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+        expire_at,
       },
     )
 

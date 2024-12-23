@@ -1,9 +1,8 @@
 import axios from 'axios'
 
 import {env} from '@/env.mjs'
+import axiosEfi from '@/services/axiosEfi'
 
-const API_BASE_URL =
-  env.EFI_API_BASE_URL ?? 'https://cobrancas-h.api.efipay.com.br/v1'
 const AUTH_URL =
   process.env.NODE_ENV === 'production'
     ? 'https://cobrancas.api.efipay.com.br/v1/authorize'
@@ -20,14 +19,18 @@ let cachedToken: string | null = null
 let tokenExpiry: number | null = null
 
 export const getAuthorizationToken = async (): Promise<string> => {
+  // Verificação de token em cache e validade
   if (cachedToken && tokenExpiry && Date.now() < tokenExpiry) {
     return cachedToken
   }
 
   try {
+    // Credenciais codificadas em Base64
     const credentials = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString(
       'base64',
     )
+
+    // Autenticação com Efipay e geração do token
     const response = await axios.post(
       AUTH_URL,
       {grant_type: 'client_credentials'},
@@ -41,6 +44,7 @@ export const getAuthorizationToken = async (): Promise<string> => {
 
     const {access_token, expires_in} = response.data
 
+    // Atualização do token em cache e tempo de expiração
     cachedToken = access_token
     tokenExpiry = Date.now() + expires_in * 1000
 
@@ -53,18 +57,7 @@ export const getAuthorizationToken = async (): Promise<string> => {
 
 export const cancelCarnet = async (carnetId: string): Promise<void> => {
   try {
-    const token = await getAuthorizationToken()
-
-    await axios.put(
-      `${API_BASE_URL}/carnet/${carnetId}/cancel`,
-      {},
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      },
-    )
+    await axiosEfi.put(`/carnet/${carnetId}/cancel`)
   } catch (error) {
     handleAxiosError(error, `Erro ao cancelar o carnê: ${carnetId}`)
   }
@@ -72,14 +65,7 @@ export const cancelCarnet = async (carnetId: string): Promise<void> => {
 
 export const getChargeStatus = async (chargeId: string) => {
   try {
-    const token = await getAuthorizationToken()
-
-    const response = await axios.get(`${API_BASE_URL}/charge/${chargeId}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    })
+    const response = await axiosEfi.get(`/charge/${chargeId}`)
 
     return response.data
   } catch (error) {

@@ -13,6 +13,7 @@ import {
   TRAVEL_SERVICE_NAME,
 } from '@/config/constants'
 import {useCustomers} from '@/hooks/useCustomers'
+import axiosLocal from '@/services/axiosLocal'
 import type {Customer} from '@/types'
 import {sanitizePhoneNumber} from '@/utils/phoneUtils'
 
@@ -52,29 +53,32 @@ const CustomersPage = () => {
       console.error(`Telefone inválido: ${customer.phone}`)
       return
     }
+
     setGeneratingCustomerId(customer.id)
 
     try {
-      const response = await fetch('/api/carnet', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          items: [
-            {name: TRAVEL_SERVICE_NAME, value: INSTALLMENT_VALUE, amount: 1},
-          ],
-          customer: {
-            name: customer.name,
-            cpf: customer.cpf,
-            email: customer.email,
-            phone_number: sanitizedPhone,
-          },
-          expire_at: EXPIRATION_DATE,
-          repeats: INSTALLMENTS,
-          message: DEFAULT_MESSAGE,
-        }),
-      })
+      // Configuração dos dados para a API
+      const payload = {
+        items: [
+          {name: TRAVEL_SERVICE_NAME, value: INSTALLMENT_VALUE, amount: 1},
+        ],
+        customer: {
+          name: customer.name,
+          cpf: customer.cpf,
+          email: customer.email,
+          phone_number: sanitizedPhone,
+        },
+        expire_at: EXPIRATION_DATE,
+        repeats: INSTALLMENTS,
+        message: DEFAULT_MESSAGE,
+      }
 
-      if (!response.ok) throw new Error('Erro ao gerar o carnê.')
+      // Chamada à API utilizando axiosLocal
+      const response = await axiosLocal.post('/carnet', payload)
+
+      if (response.status !== 201) {
+        throw new Error('Erro ao gerar o carnê.')
+      }
 
       alert('Carnê gerado com sucesso!')
     } catch (error) {
@@ -87,11 +91,13 @@ const CustomersPage = () => {
 
   const handleConfirmCustomer = async (customer: Customer) => {
     try {
-      const response = await fetch(`/api/customers/${customer.id}/confirm`, {
-        method: 'PUT',
-      })
+      // Chamada à API utilizando axiosLocal
+      const response = await axiosLocal.put(`/customers/${customer.id}/confirm`)
 
-      if (!response.ok) throw new Error('Erro ao confirmar o cliente.')
+      // Valida a resposta da API
+      if (response.status !== 200) {
+        throw new Error('Erro ao confirmar o cliente.')
+      }
 
       alert('Cliente confirmado com sucesso!')
     } catch (error) {

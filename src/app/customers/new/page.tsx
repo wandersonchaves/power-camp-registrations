@@ -2,7 +2,10 @@
 
 import {useState} from 'react'
 import {CustomerStatusEnum} from '@prisma/client'
+import axios from 'axios'
 import {useRouter} from 'next/navigation'
+
+import axiosLocal from '@/services/axiosLocal'
 
 const getStatusLabel = (status: CustomerStatusEnum): string => {
   switch (status) {
@@ -53,21 +56,25 @@ const NewCustomer = () => {
     setError(null)
 
     try {
-      const response = await fetch('/api/customers', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(formData),
-      })
+      // Fazendo a requisição utilizando a instância do Axios
+      const response = await axiosLocal.post('/customers', formData)
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || 'Erro desconhecido.')
+      // Redireciona para a página de clientes após o sucesso
+      if (response.status === 201) {
+        router.push('/customers')
+      } else {
+        throw new Error(
+          response.data?.message || 'Erro desconhecido ao criar cliente.',
+        )
       }
-
-      await response.json()
-      router.push('/customers')
     } catch (err: unknown) {
-      if (err instanceof Error) {
+      if (axios.isAxiosError(err)) {
+        // Tratamento específico para erros do Axios
+        setError(
+          err.response?.data?.message || 'Erro ao processar a requisição.',
+        )
+        console.error('Erro do Axios:', err.response?.data || err.message)
+      } else if (err instanceof Error) {
         setError(err.message)
       } else {
         setError('Erro desconhecido.')

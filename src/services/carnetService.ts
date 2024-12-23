@@ -1,3 +1,7 @@
+import axios from 'axios'
+
+import axiosLocal from './axiosLocal'
+
 import {prisma} from '@/lib/prisma'
 import type {Carnet, Customer} from '@/types'
 import {ErrorHandler} from '@/utils/errorHandler'
@@ -74,4 +78,48 @@ export const saveCarnetData = async (carnet: Carnet, customer: Customer) => {
       },
     })
   })
+}
+
+export const updateCarnetStatus = async (
+  carnetId: number,
+  status: 'cancelled',
+): Promise<void> => {
+  try {
+    await axiosLocal.put('/carnet/status', {carnetId, status})
+  } catch (error: unknown) {
+    if (axios.isAxiosError(error)) {
+      console.error(
+        'Erro ao atualizar o status do carnê no banco de dados:',
+        error.response?.data || error.message,
+      )
+    } else {
+      console.error('Erro inesperado:', error)
+    }
+    throw new Error('Erro ao atualizar o status do carnê.')
+  }
+}
+
+/**
+ * Serviço para cancelar um carnê via a rota de API do Next.js.
+ * @param carnetId - O ID do carnê a ser cancelado.
+ * @returns Mensagem de sucesso ou erro.
+ */
+export const cancelCarnet = async (carnetId: number): Promise<string> => {
+  try {
+    const {data} = await axiosLocal.put('/carnet/cancel', {carnetId})
+    return data.message
+  } catch (error: unknown) {
+    if (axios.isAxiosError(error)) {
+      console.error(
+        'Erro ao cancelar carnê:',
+        error.response?.data || error.message,
+      )
+      throw new Error(
+        error.response?.data?.message || 'Erro ao cancelar o carnê.',
+      )
+    } else {
+      console.error('Erro desconhecido ao cancelar carnê:', error)
+      throw new Error('Erro desconhecido ao cancelar o carnê.')
+    }
+  }
 }

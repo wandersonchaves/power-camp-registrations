@@ -1,9 +1,9 @@
 import {FC, useCallback, useEffect, useState} from 'react'
-import axios from 'axios'
 
 import {Button} from '@/components/ui/button'
 import {Input} from '@/components/ui/input'
 import Modal from '@/components/ui/modal'
+import axiosLocal from '@/services/axiosLocal'
 
 interface Parcel {
   charge_id: number
@@ -43,7 +43,7 @@ const ParcelDetailsModal: FC<ParcelDetailsModalProps> = ({
     setLoading(true)
 
     try {
-      const {data} = await axios.get(`/api/carnet/${carnetId}/details`)
+      const {data} = await axiosLocal.get(`/carnet/${carnetId}/details`)
       const fetchedParcels =
         data?.data?.charges?.map((charge: Parcel) => ({
           charge_id: charge.charge_id,
@@ -73,8 +73,8 @@ const ParcelDetailsModal: FC<ParcelDetailsModalProps> = ({
     setLoading(true)
 
     try {
-      const response = await axios.put(
-        `/api/carnet/${carnetId}/parcel/${parcel}`,
+      const response = await axiosLocal.put(
+        `/carnet/${carnetId}/parcel/${parcel}`,
         {expire_at: newDate},
       )
 
@@ -112,7 +112,22 @@ const ParcelDetailsModal: FC<ParcelDetailsModalProps> = ({
           >
             <span>
               Parcela {parcel.parcel} -{' '}
-              {parcel.status === 'waiting' ? 'Pendente' : 'Paga'}
+              {(() => {
+                switch (parcel.status) {
+                  case 'waiting':
+                    return <span className="text-yellow-500">Pendente</span>
+                  case 'paid':
+                    return <span className="text-green-500">Paga</span>
+                  case 'canceled':
+                    return <span className="text-red-500">Cancelada</span>
+                  case 'cancelled':
+                    return <span className="text-red-500">Cancelada</span>
+                  default:
+                    return (
+                      <span className="text-gray-500">Status Desconhecido</span>
+                    )
+                }
+              })()}
             </span>
             <Input
               type="date"
