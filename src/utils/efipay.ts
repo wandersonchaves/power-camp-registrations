@@ -4,7 +4,7 @@ import {env} from '@/env.mjs'
 import axiosEfi from '@/services/axiosEfi'
 
 const AUTH_URL =
-  process.env.NODE_ENV === 'production'
+  process.env.EFI_SANDBOX === 'false'
     ? 'https://cobrancas.api.efipay.com.br/v1/authorize'
     : 'https://cobrancas-h.api.efipay.com.br/v1/authorize'
 
