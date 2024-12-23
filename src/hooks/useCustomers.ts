@@ -2,6 +2,7 @@
 
 import {useCallback, useEffect, useState} from 'react'
 
+import axiosLocal from '@/services/axiosLocal'
 import type {Customer} from '@/types'
 
 interface UseCustomersResult {
@@ -27,14 +28,15 @@ export const useCustomers = (
       setLoading(true)
 
       try {
-        const response = await fetch(
-          `/api/customers?page=${currentPage}&limit=${limit}&search=${searchTerm}`,
-        )
-        if (!response.ok) {
-          throw new Error(`Failed to fetch customers: ${response.status}`)
-        }
+        const response = await axiosLocal.get('/customers', {
+          params: {
+            page: currentPage,
+            limit,
+            search: searchTerm,
+          },
+        })
 
-        const {data, meta} = await response.json()
+        const {data, meta} = response.data
 
         setCustomers(data)
         setTotalPages(meta?.totalPages || 1)

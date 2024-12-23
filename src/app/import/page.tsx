@@ -3,6 +3,7 @@
 import React, {useState} from 'react'
 
 import FileUpload from '@/components/FileUpload'
+import axiosLocal from '@/services/axiosLocal'
 import {ErrorHandler} from '@/utils/errorHandler'
 
 const ImportPage: React.FC = () => {
@@ -10,19 +11,24 @@ const ImportPage: React.FC = () => {
 
   const handleFileUpload = async (file: File) => {
     setLoading(true)
+
     const formData = new FormData()
     formData.append('file', file)
 
     try {
       await ErrorHandler.handle(
         async () => {
-          return await fetch('/api/upload', {
-            method: 'POST',
-            body: formData,
+          // Utilizando a instância do Axios para enviar o arquivo
+          return await axiosLocal.post('/upload', formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
           })
         },
         {context: 'ImportPage'},
       )
+    } catch (error) {
+      console.error('Erro no upload do arquivo:', error)
     } finally {
       setLoading(false)
     }

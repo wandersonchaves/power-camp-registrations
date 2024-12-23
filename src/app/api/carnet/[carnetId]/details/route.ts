@@ -1,8 +1,7 @@
-import axios, {AxiosError} from 'axios'
+import {AxiosError} from 'axios'
 import {NextResponse} from 'next/server'
 
-import {env} from '@/env.mjs'
-import {getAuthorizationToken} from '@/utils/efipay'
+import axiosEfi from '@/services/axiosEfi'
 
 export async function GET(
   _req: Request,
@@ -18,14 +17,7 @@ export async function GET(
       )
     }
 
-    const token = await getAuthorizationToken()
-    const API_BASE_URL = env.EFI_API_BASE_URL
-
-    const response = await axios.get(`${API_BASE_URL}/carnet/${carnetId}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
+    const response = await axiosEfi.get(`/carnet/${carnetId}`)
 
     return NextResponse.json(response.data, {status: 200})
   } catch (error) {
