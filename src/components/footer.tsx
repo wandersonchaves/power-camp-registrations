@@ -1,3 +1,5 @@
+import Link from 'next/link'
+
 import {Button} from '@/components/ui/button'
 
 export const Footer = () => {
@@ -9,7 +11,7 @@ export const Footer = () => {
         className="p-0"
         asChild
       >
-        <a href="https://wandersonchaves.vercel.app/">Wanderson Chaves</a>
+        <Link href="https://wandersonchaves.vercel.app/">Wanderson Chaves</Link>
       </Button>
     </footer>
   )
