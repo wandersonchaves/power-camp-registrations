@@ -85,7 +85,7 @@ export class ErrorHandler {
   }
 
   private static logError(error: unknown, context?: string): void {
-    const isProduction = process.env.NODE_ENV === 'production'
+    const isProduction = process.env.EFI_SANDBOX === 'false'
 
     const logDetails = {
       timestamp: new Date().toISOString(),
