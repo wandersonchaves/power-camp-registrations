@@ -13,7 +13,9 @@ export async function GET(request: NextRequest): Promise<Response> {
     const searchParams = request.nextUrl.searchParams
     const page = parseInt(searchParams.get('page') || '1', 10)
     const limit = parseInt(searchParams.get('limit') || '10', 10)
-    const search = searchParams.get('search') || ''
+    const name = searchParams.get('name') || ''
+    const cpf = searchParams.get('cpf') || ''
+    const status = searchParams.get('status') || ''
 
     if (isNaN(page) || isNaN(limit) || page <= 0 || limit <= 0) {
       return NextResponse.json(
@@ -22,11 +24,11 @@ export async function GET(request: NextRequest): Promise<Response> {
       )
     }
 
-    const customersData = await getCustomers({page, limit, search})
+    const customersData = await getCustomers({page, limit, name, cpf, status})
 
-    if (!customersData || !customersData.customers) {
+    if (!customersData) {
       return NextResponse.json(
-        {message: 'Nenhum dado de cliente encontrado.'},
+        {message: 'Nenhum cliente encontrado.'},
         {status: 404},
       )
     }
