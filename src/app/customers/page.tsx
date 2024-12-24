@@ -1,6 +1,7 @@
 'use client'
 
-import {useState} from 'react'
+import {useEffect, useState} from 'react'
+import {PlusCircleIcon} from 'lucide-react'
 import Link from 'next/link'
 
 import CustomerTable from '@/components/CustomerTable'
@@ -26,17 +27,43 @@ const CustomersPage = () => {
     setPage,
     searchCustomers,
   } = useCustomers()
-  const [searchTerm, setSearchTerm] = useState('')
+  console.log('🚀 ~ CustomersPage ~ customers:', customers)
+  const [filters, setFilters] = useState({
+    name: '',
+    cpf: '',
+    status: '',
+  })
   const [generatingCustomerId, setGeneratingCustomerId] = useState<
     string | null
   >(null)
 
-  const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(event.target.value)
+  const syncCarnets = async () => {
+    try {
+      const response = await axiosLocal.post('/carnet/sync')
+      if (response.status !== 200) {
+        console.error('Erro ao sincronizar carnês:', response.data.message)
+      }
+    } catch (error) {
+      console.error('Erro ao sincronizar carnês:', error)
+    }
   }
 
-  const handleSearch = () => {
-    searchCustomers(searchTerm.trim())
+  useEffect(() => {
+    syncCarnets()
+  }, [])
+
+  const handleFilterChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+  ) => {
+    setFilters((prev) => ({
+      ...prev,
+      [e.target.name]: e.target.value,
+    }))
+  }
+
+  const applyFilters = () => {
+    const {name, cpf, status} = filters
+    searchCustomers({name, cpf, status})
   }
 
   const handleGenerateCarnet = async (customer: {
@@ -116,24 +143,46 @@ const CustomersPage = () => {
         <h1 className="text-lg font-bold leading-none tracking-tight text-gray-900 md:text-5xl lg:text-4xl dark:text-white">
           INSCRITOS
         </h1>
-        <div className="mt-4 flex gap-4 lg:mt-0">
+        <div className="mt-4 flex flex-col gap-4 lg:mt-0 lg:flex-row">
           <input
             type="text"
-            placeholder="Buscar clientes..."
-            value={searchTerm}
-            onChange={handleSearchChange}
+            name="name"
+            placeholder="Nome"
+            value={filters.name}
+            onChange={handleFilterChange}
             className="rounded-lg border border-gray-300 px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
           />
+          <input
+            type="text"
+            name="cpf"
+            placeholder="CPF"
+            value={filters.cpf}
+            onChange={handleFilterChange}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+          />
+          <select
+            name="status"
+            value={filters.status}
+            onChange={handleFilterChange}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+          >
+            <option value="">Todos</option>
+            <option value="up_to_date">Em Dia</option>
+            <option value="unpaid">Inadimplente</option>
+            <option value="finished">Finalizado</option>
+            <option value="no_carnet">Sem Carnê</option>
+          </select>
           <button
-            onClick={handleSearch}
+            onClick={applyFilters}
             className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300 dark:focus:ring-blue-800"
           >
-            Buscar
+            Filtrar
           </button>
           <Link
             href="/customers/new"
             className="flex items-center rounded-lg bg-gray-400 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
           >
+            <PlusCircleIcon className="mr-2" />
             Nova Inscrição
           </Link>
         </div>

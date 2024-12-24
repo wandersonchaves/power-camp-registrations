@@ -6,7 +6,9 @@ import type {Carnet, Charge, Customer} from '@/types'
 interface GetCustomersParams {
   page?: number
   limit?: number
-  search?: string
+  name?: string
+  cpf?: string
+  status?: string
 }
 
 interface GetCustomersResponse {
@@ -16,11 +18,6 @@ interface GetCustomersResponse {
   totalPages: number
 }
 
-/**
- * Normaliza os dados do cliente retornados pelo Prisma para alinhar com as tipagens esperadas.
- * @param customer - Dados do cliente retornados pelo Prisma.
- * @returns Cliente normalizado.
- */
 const normalizeCustomer = (
   customer: Prisma.CustomerGetPayload<{
     include: {
@@ -71,31 +68,49 @@ const normalizeCustomer = (
   ),
 })
 
-/**
- * Obtém os clientes com paginação e condições de pesquisa.
- * @param params - Parâmetros para buscar os clientes.
- * @returns Dados dos clientes e informações de paginação.
- */
 export const getCustomers = async ({
   page = 1,
   limit = 10,
-  search = '',
+  name = '',
+  cpf = '',
+  status = '',
 }: GetCustomersParams): Promise<GetCustomersResponse | null> => {
   try {
     const skip = (page - 1) * limit
 
-    const searchCondition: Prisma.CustomerWhereInput | undefined = search
-      ? {
-          OR: [
-            {name: {contains: search, mode: 'insensitive'}},
-            {cpf: {contains: search, mode: 'insensitive'}},
-          ],
-        }
-      : undefined
+    const whereClause: Prisma.CustomerWhereInput = {
+      AND: [
+        ...(name
+          ? [{name: {contains: name, mode: Prisma.QueryMode.insensitive}}]
+          : []),
+        ...(cpf
+          ? [{cpf: {contains: cpf, mode: Prisma.QueryMode.insensitive}}]
+          : []),
+        ...(status === 'no_carnet'
+          ? [
+              {
+                carnets: {
+                  none: {},
+                },
+              },
+            ]
+          : status
+            ? [
+                {
+                  carnets: {
+                    some: {
+                      status: {equals: status},
+                    },
+                  },
+                },
+              ]
+            : []),
+      ],
+    }
 
     const [customers, total] = await prisma.$transaction([
       prisma.customer.findMany({
-        where: searchCondition,
+        where: whereClause,
         skip,
         take: limit,
         orderBy: {name: 'asc'},
@@ -107,9 +122,7 @@ export const getCustomers = async ({
           },
         },
       }),
-      prisma.customer.count({
-        where: searchCondition,
-      }),
+      prisma.customer.count({where: whereClause}),
     ])
 
     const normalizedCustomers = customers.map(normalizeCustomer)
