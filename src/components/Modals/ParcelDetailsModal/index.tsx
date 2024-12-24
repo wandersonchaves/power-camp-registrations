@@ -34,6 +34,7 @@ const ParcelDetailsModal: FC<ParcelDetailsModalProps> = ({
 }) => {
   const [parcels, setParcels] = useState<Parcel[]>([])
   const [loading, setLoading] = useState(false)
+  const [updatingParcels, setUpdatingParcels] = useState<Set<number>>(new Set())
 
   const fetchParcels = useCallback(async () => {
     if (!carnetId) {
@@ -72,6 +73,12 @@ const ParcelDetailsModal: FC<ParcelDetailsModalProps> = ({
     }
 
     setLoading(true)
+    if (updatingParcels.has(parcel)) {
+      console.warn(`Atualização já em andamento para a parcela ${parcel}`)
+      return
+    }
+
+    setUpdatingParcels((prev) => new Set(prev).add(parcel))
 
     try {
       const response = await axiosLocal.put(
@@ -90,6 +97,11 @@ const ParcelDetailsModal: FC<ParcelDetailsModalProps> = ({
       alert('Erro ao atualizar a data de vencimento. Tente novamente.')
     } finally {
       setLoading(false)
+      setUpdatingParcels((prev) => {
+        const updatedSet = new Set(prev)
+        updatedSet.delete(parcel)
+        return updatedSet
+      })
     }
   }
 
@@ -102,7 +114,7 @@ const ParcelDetailsModal: FC<ParcelDetailsModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
     >
-      <div className="flex items-center justify-between rounded-t border-b p-4 md:p-5 dark:border-gray-600">
+      <div className="flex items-center justify-between rounded-t border-b p-2 md:p-3 dark:border-gray-600">
         <h2 className="text-4xl font-bold text-black dark:text-gray-800">
           Detalhes das Parcelas
         </h2>
@@ -150,6 +162,7 @@ const ParcelDetailsModal: FC<ParcelDetailsModalProps> = ({
                   onBlur={(e) =>
                     handleDateChange(parcel.parcel, e.target.value)
                   }
+                  disabled={updatingParcels.has(parcel.parcel)}
                   className="text-sm text-gray-700 dark:text-white"
                 />
               </div>
@@ -169,7 +182,7 @@ const ParcelDetailsModal: FC<ParcelDetailsModalProps> = ({
           ))}
         </ul>
       </div>
-      <div className="flex items-center rounded-b border-t border-gray-200 p-4 md:p-5 dark:border-gray-600">
+      <div className="flex items-center rounded-b border-t border-gray-200 p-2 md:p-3 dark:border-gray-600">
         <Button
           onClick={onClose}
           className="mt-4"
