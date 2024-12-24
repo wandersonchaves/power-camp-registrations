@@ -128,7 +128,6 @@ const ParcelDetailsModal: FC<ParcelDetailsModalProps> = ({
               key={parcel.charge_id}
               className="flex flex-col justify-between space-y-2 py-3 sm:flex-row sm:items-center sm:space-y-0 sm:py-4"
             >
-              {/* Informações da parcela e status */}
               <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 rtl:space-x-reverse">
                 <span className="truncate text-sm font-medium text-gray-900 dark:text-white">
                   Parcela {parcel.parcel}
@@ -158,7 +157,6 @@ const ParcelDetailsModal: FC<ParcelDetailsModalProps> = ({
                 </span>
               </div>
 
-              {/* Input para alterar data */}
               <div className="flex items-center">
                 <Input
                   type="date"
@@ -171,7 +169,6 @@ const ParcelDetailsModal: FC<ParcelDetailsModalProps> = ({
                 />
               </div>
 
-              {/* Link para o PDF */}
               <div className="flex items-center">
                 <Link
                   href={parcel.pdf?.charge}
