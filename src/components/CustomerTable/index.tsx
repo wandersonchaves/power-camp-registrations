@@ -174,34 +174,19 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
 
     const carnet = customer.carnets[0]
 
-    // Verifica se o status do carnê é "cancelled"
-    if (carnet.status === 'cancelled') {
-      return <span className="text-gray-500">Cancelado</span>
+    // Verifica o status do carnê diretamente
+    switch (carnet.status) {
+      case 'up_to_date':
+        return <span className="text-green-500">Em Dia</span>
+      case 'unpaid':
+        return <span className="text-yellow-500">Inadimplente</span>
+      case 'finished':
+        return <span className="text-blue-500">Finalizado</span>
+      case 'cancelled':
+        return <span className="text-gray-500">Cancelado</span>
+      default:
+        return <span className="text-gray-500">Status Desconhecido</span>
     }
-
-    // Filtra somente as parcelas vencidas que não estão pagas
-    const overdueUnpaidCharges = carnet.charges.filter((charge) => {
-      const isOverdue = new Date(charge.expireAt) < new Date()
-      const isUnpaid = charge.status !== 'paid'
-      return isOverdue && isUnpaid
-    })
-
-    if (overdueUnpaidCharges.length > 0) {
-      return <span className="text-yellow-500">Inadimplente</span>
-    }
-
-    // Verifica se todas as parcelas vencidas estão pagas
-    const allChargesPaid = carnet.charges.every((charge) => {
-      const isOverdue = new Date(charge.expireAt) < new Date()
-      const isPaid = charge.status === 'paid'
-      return !isOverdue || isPaid
-    })
-
-    if (allChargesPaid) {
-      return <span className="text-green-500">Em Dia</span>
-    }
-
-    return <span className="text-gray-500">Sem Informação</span>
   }
 
   return (

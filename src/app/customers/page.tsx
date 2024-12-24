@@ -1,6 +1,6 @@
 'use client'
 
-import {useState} from 'react'
+import {useEffect, useState} from 'react'
 import Link from 'next/link'
 
 import CustomerTable from '@/components/CustomerTable'
@@ -30,6 +30,21 @@ const CustomersPage = () => {
   const [generatingCustomerId, setGeneratingCustomerId] = useState<
     string | null
   >(null)
+
+  const syncCarnets = async () => {
+    try {
+      const response = await axiosLocal.post('/carnet/sync')
+      if (response.status !== 200) {
+        console.error('Erro ao sincronizar carnês:', response.data.message)
+      }
+    } catch (error) {
+      console.error('Erro ao sincronizar carnês:', error)
+    }
+  }
+
+  useEffect(() => {
+    syncCarnets()
+  }, [])
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(event.target.value)
