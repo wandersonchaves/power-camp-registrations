@@ -1,7 +1,6 @@
 'use client'
 
 import {useEffect, useState} from 'react'
-import {PlusCircleIcon} from 'lucide-react'
 import Link from 'next/link'
 
 import CustomerTable from '@/components/CustomerTable'
@@ -19,15 +18,8 @@ import type {Customer} from '@/types'
 import {sanitizePhoneNumber} from '@/utils/phoneUtils'
 
 const CustomersPage = () => {
-  const {
-    customers,
-    loading,
-    totalPages,
-    currentPage,
-    setPage,
-    searchCustomers,
-  } = useCustomers()
-  console.log('🚀 ~ CustomersPage ~ customers:', customers)
+  const {customers, loading, totalPages, currentPage, setPage, applyFilters} =
+    useCustomers()
   const [filters, setFilters] = useState({
     name: '',
     cpf: '',
@@ -55,15 +47,15 @@ const CustomersPage = () => {
   const handleFilterChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
+    const {name, value} = e.target
     setFilters((prev) => ({
       ...prev,
-      [e.target.name]: e.target.value,
+      [name]: value,
     }))
   }
 
-  const applyFilters = () => {
-    const {name, cpf, status} = filters
-    searchCustomers({name, cpf, status})
+  const handleApplyFilters = () => {
+    applyFilters(filters)
   }
 
   const handleGenerateCarnet = async (customer: {
@@ -134,13 +126,13 @@ const CustomersPage = () => {
   }
 
   if (loading) {
-    return <p>Carregando dados...</p>
+    return <p>Carregando...</p>
   }
 
   return (
     <div className="p-6">
       <div className="mb-4 flex flex-col items-center justify-between lg:flex-row">
-        <h1 className="text-lg font-bold leading-none tracking-tight text-gray-900 md:text-5xl lg:text-4xl dark:text-white">
+        <h1 className="text-lg font-bold tracking-tight text-gray-900 dark:text-white">
           INSCRITOS
         </h1>
         <div className="mt-4 flex flex-col gap-4 lg:mt-0 lg:flex-row">
@@ -150,7 +142,7 @@ const CustomersPage = () => {
             placeholder="Nome"
             value={filters.name}
             onChange={handleFilterChange}
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+            className="rounded-lg border px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
           />
           <input
             type="text"
@@ -158,13 +150,13 @@ const CustomersPage = () => {
             placeholder="CPF"
             value={filters.cpf}
             onChange={handleFilterChange}
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+            className="rounded-lg border px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
           />
           <select
             name="status"
             value={filters.status}
             onChange={handleFilterChange}
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+            className="rounded-lg border px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
           >
             <option value="">Todos</option>
             <option value="up_to_date">Em Dia</option>
@@ -173,7 +165,7 @@ const CustomersPage = () => {
             <option value="no_carnet">Sem Carnê</option>
           </select>
           <button
-            onClick={applyFilters}
+            onClick={handleApplyFilters}
             className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300 dark:focus:ring-blue-800"
           >
             Filtrar
@@ -182,7 +174,6 @@ const CustomersPage = () => {
             href="/customers/new"
             className="flex items-center rounded-lg bg-gray-400 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
           >
-            <PlusCircleIcon className="mr-2" />
             Nova Inscrição
           </Link>
         </div>
