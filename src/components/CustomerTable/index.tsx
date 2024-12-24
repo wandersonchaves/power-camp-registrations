@@ -59,6 +59,11 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
   }, [openDropdown])
 
   const handleCancelCarnet = async (carnetId: number) => {
+    const confirmCancel = window.confirm(
+      'Tem certeza que deseja cancelar este carnê? Essa ação não pode ser desfeita.',
+    )
+    if (!confirmCancel) return
+
     setCancelingCarnetId(carnetId)
     try {
       const message = await cancelCarnet(carnetId)
