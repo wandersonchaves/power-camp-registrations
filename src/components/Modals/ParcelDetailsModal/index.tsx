@@ -143,6 +143,10 @@ const ParcelDetailsModal: FC<ParcelDetailsModalProps> = ({
                       case 'canceled':
                       case 'cancelled':
                         return <span className="text-red-500">Cancelada</span>
+                      case 'unpaid':
+                        return (
+                          <span className="text-red-500">Inadimplente</span>
+                        )
                       default:
                         return (
                           <span className="text-gray-500">
