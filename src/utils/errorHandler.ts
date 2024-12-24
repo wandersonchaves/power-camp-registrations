@@ -93,9 +93,7 @@ export class ErrorHandler {
       error: this.serializeError(error),
     }
 
-    if (isProduction) {
-      console.log('[Log - Production]', JSON.stringify(logDetails))
-    } else {
+    if (!isProduction) {
       console.error('[Log - Development]', logDetails)
     }
   }

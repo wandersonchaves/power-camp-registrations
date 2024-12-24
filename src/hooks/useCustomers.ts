@@ -11,7 +11,13 @@ interface UseCustomersResult {
   totalPages: number
   currentPage: number
   setPage: (page: number) => void
-  searchCustomers: (term: string) => void
+  searchCustomers: (filters: SearchFilters) => void
+}
+
+interface SearchFilters {
+  name?: string
+  cpf?: string
+  status?: string
 }
 
 export const useCustomers = (
@@ -24,7 +30,7 @@ export const useCustomers = (
   const [currentPage, setCurrentPage] = useState<number>(initialPage)
 
   const fetchCustomers = useCallback(
-    async (searchTerm: string = '') => {
+    async (filters: SearchFilters = {}) => {
       setLoading(true)
 
       try {
@@ -32,7 +38,7 @@ export const useCustomers = (
           params: {
             page: currentPage,
             limit,
-            search: searchTerm,
+            ...filters,
           },
         })
 
@@ -63,8 +69,8 @@ export const useCustomers = (
   )
 
   const searchCustomers = useCallback(
-    (term: string) => {
-      fetchCustomers(term)
+    (filters: SearchFilters) => {
+      fetchCustomers(filters)
     },
     [fetchCustomers],
   )
