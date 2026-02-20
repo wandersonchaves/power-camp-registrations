@@ -1,12 +1,12 @@
-'use client'
+"use client";
 
-import {useState} from 'react'
-import Image from 'next/image'
-import {Session} from 'next-auth'
-import {signOut} from 'next-auth/react'
+import { useState } from "react";
+import Image from "next/image";
+import { Session } from "next-auth";
+import { signOut } from "next-auth/react";
 
-import {Icons} from '@/components/icons'
-import {Button} from '@/components/ui/button'
+import { Icons } from "@/components/icons";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,14 +14,14 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from "@/components/ui/dropdown-menu";
 
-export const UserDropdown = ({session: {user}}: {session: Session}) => {
-  const [isPending, setIsPending] = useState(false)
+export const UserDropdown = ({ session: { user } }: { session: Session }) => {
+  const [isPending, setIsPending] = useState(false);
 
   const handleCreateCheckoutSession = async () => {
-    setIsPending(true)
-  }
+    setIsPending(true);
+  };
 
   return (
     <DropdownMenu>
@@ -52,7 +52,7 @@ export const UserDropdown = ({session: {user}}: {session: Session}) => {
             className="w-64"
           >
             {user?.isActive ? (
-              'Atualizar para Pro'
+              "Atualizar para Pro"
             ) : (
               <>
                 {isPending && (
@@ -69,5 +69,5 @@ export const UserDropdown = ({session: {user}}: {session: Session}) => {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
-  )
-}
+  );
+};

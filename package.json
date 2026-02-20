@@ -11,6 +11,7 @@
     "dev": "prisma generate && next dev --turbo",
     "e2e:ui": "playwright test --ui",
     "e2e": "playwright test",
+    "format": "prettier --write .",
     "format:check": "prettier --check \"**/*.{ts,tsx,mdx}\" --cache",
     "format:write": "prettier --write \"**/*.{ts,tsx,mdx}\" --cache",
     "lint:fix": "next lint --fix",
@@ -28,8 +29,11 @@
     }
   },
   "lint-staged": {
-    "*.{jsx,js,ts,tsx}": [
+    "*.{ts,tsx,js,jsx}": [
       "eslint --cache --fix",
+      "prettier --write"
+    ],
+    "*.{json,css,md}": [
       "prettier --write"
     ]
   },

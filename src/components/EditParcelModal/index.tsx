@@ -1,10 +1,10 @@
-import React, {useState} from 'react'
+import React, { useState } from "react";
 
 interface EditParcelModalProps {
-  isOpen: boolean
-  onClose: () => void
-  onSave: (expireAt: string) => void
-  currentExpireAt: string
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (expireAt: string) => void;
+  currentExpireAt: string;
 }
 
 export default function EditParcelModal({
@@ -13,9 +13,9 @@ export default function EditParcelModal({
   onSave,
   currentExpireAt,
 }: EditParcelModalProps) {
-  const [expireAt, setExpireAt] = useState(currentExpireAt)
+  const [expireAt, setExpireAt] = useState(currentExpireAt);
 
-  if (!isOpen) return null
+  if (!isOpen) return null;
 
   return (
     <div className="bg-opacity/50 fixed inset-0 flex items-center justify-center bg-gray-600">
@@ -28,10 +28,7 @@ export default function EditParcelModal({
           onChange={(e) => setExpireAt(e.target.value)}
         />
         <div className="mt-4 flex justify-end gap-2">
-          <button
-            className="rounded bg-gray-300 px-4 py-2"
-            onClick={onClose}
-          >
+          <button className="rounded bg-gray-300 px-4 py-2" onClick={onClose}>
             Cancelar
           </button>
           <button
@@ -43,5 +40,5 @@ export default function EditParcelModal({
         </div>
       </div>
     </div>
-  )
+  );
 }

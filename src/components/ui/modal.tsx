@@ -1,13 +1,13 @@
-import {FC, ReactNode} from 'react'
+import { FC, ReactNode } from "react";
 
 interface ModalProps {
-  isOpen: boolean
-  onClose: () => void
-  children: ReactNode
+  isOpen: boolean;
+  onClose: () => void;
+  children: ReactNode;
 }
 
-const Modal: FC<ModalProps> = ({isOpen, onClose, children}) => {
-  if (!isOpen) return null
+const Modal: FC<ModalProps> = ({ isOpen, onClose, children }) => {
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex h-[calc(100%-1rem)] max-h-full w-full items-center justify-center overflow-hidden overflow-y-auto md:inset-0">
@@ -24,7 +24,7 @@ const Modal: FC<ModalProps> = ({isOpen, onClose, children}) => {
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default Modal
+export default Modal;

@@ -1,12 +1,12 @@
-import {MetadataRoute} from 'next'
+import { MetadataRoute } from "next";
 
-import {env} from '@/env.mjs'
+import { env } from "@/env.mjs";
 
 const sitemap = (): MetadataRoute.Sitemap => [
   {
-    url: env.APP_URL || '/',
+    url: env.APP_URL || "/",
     lastModified: new Date(),
-    changeFrequency: 'yearly',
+    changeFrequency: "yearly",
     priority: 1,
     alternates: {
       languages: {
@@ -14,6 +14,6 @@ const sitemap = (): MetadataRoute.Sitemap => [
       },
     },
   },
-]
+];
 
-export default sitemap
+export default sitemap;
