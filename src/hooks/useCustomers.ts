@@ -2,8 +2,8 @@
 
 import {useCallback, useEffect, useState} from 'react'
 
-import axiosLocal from '@/services/axiosLocal'
 import type {Customer} from '@/types'
+import axiosLocal from '@/use-cases/axiosLocal'
 
 export const useCustomers = (initialPage: number = 1, limit: number = 10) => {
   const [customers, setCustomers] = useState<Customer[]>([])

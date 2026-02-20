@@ -3,7 +3,7 @@
 import React, {useState} from 'react'
 
 import FileUpload from '@/components/FileUpload'
-import axiosLocal from '@/services/axiosLocal'
+import axiosLocal from '@/use-cases/axiosLocal'
 import {ErrorHandler} from '@/utils/errorHandler'
 
 const ImportPage: React.FC = () => {

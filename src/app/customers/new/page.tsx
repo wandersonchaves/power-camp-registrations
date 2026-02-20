@@ -5,7 +5,7 @@ import {CustomerStatusEnum} from '@prisma/client'
 import axios from 'axios'
 import {useRouter} from 'next/navigation'
 
-import axiosLocal from '@/services/axiosLocal'
+import axiosLocal from '@/use-cases/axiosLocal'
 
 const getStatusLabel = (status: CustomerStatusEnum): string => {
   switch (status) {

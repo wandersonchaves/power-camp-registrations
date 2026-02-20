@@ -13,8 +13,8 @@ import {
   TRAVEL_SERVICE_NAME,
 } from '@/config/constants'
 import {useCustomers} from '@/hooks/useCustomers'
-import axiosLocal from '@/services/axiosLocal'
 import type {Customer} from '@/types'
+import axiosLocal from '@/use-cases/axiosLocal'
 import {sanitizePhoneNumber} from '@/utils/phoneUtils'
 
 const CustomersPage = () => {

@@ -1,7 +1,7 @@
 import {NextResponse} from 'next/server'
 
 import {prisma} from '@/lib/prisma'
-import axiosEfi from '@/services/axiosEfi'
+import axiosEfi from '@/use-cases/axiosEfi'
 
 export async function POST(): Promise<Response> {
   try {
