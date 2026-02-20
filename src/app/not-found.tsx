@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import Link from "next/link";
 
 const NotFound = () => (
   <section className="bg-white dark:bg-gray-900">
@@ -23,6 +23,6 @@ const NotFound = () => (
       </div>
     </div>
   </section>
-)
+);
 
-export default NotFound
+export default NotFound;

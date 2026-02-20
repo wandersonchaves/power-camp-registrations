@@ -1,10 +1,10 @@
-import React from 'react'
-import Link from 'next/link'
+import React from "react";
+import Link from "next/link";
 
 interface PaginationProps {
-  currentPage: number
-  totalPages: number
-  onPageChange: (page: number) => void
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
 }
 
 const Pagination: React.FC<PaginationProps> = ({
@@ -17,18 +17,18 @@ const Pagination: React.FC<PaginationProps> = ({
       <ul className="mt-4 flex h-8 items-center justify-center -space-x-px text-sm">
         <li>
           <Link
-            href={currentPage === 1 ? '#' : '#'}
+            href={currentPage === 1 ? "#" : "#"}
             onClick={(e) => {
               if (currentPage === 1) {
-                e.preventDefault()
+                e.preventDefault();
               } else {
-                onPageChange(currentPage - 1)
+                onPageChange(currentPage - 1);
               }
             }}
             className={`ms-0 flex h-8 items-center justify-center rounded-s-lg border border-e-0 border-gray-300 px-3 leading-tight ${
               currentPage === 1
-                ? 'cursor-not-allowed bg-gray-200 text-gray-400'
-                : 'bg-white text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white'
+                ? "cursor-not-allowed bg-gray-200 text-gray-400"
+                : "bg-white text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
             }`}
           >
             <span className="sr-only">Previous</span>
@@ -50,8 +50,8 @@ const Pagination: React.FC<PaginationProps> = ({
           </Link>
         </li>
 
-        {Array.from({length: totalPages}, (_, index) => {
-          const page = index + 1
+        {Array.from({ length: totalPages }, (_, index) => {
+          const page = index + 1;
 
           return (
             <li key={page}>
@@ -59,36 +59,36 @@ const Pagination: React.FC<PaginationProps> = ({
                 href="#"
                 className={`flex h-8 items-center justify-center border px-3 leading-tight ${
                   page === currentPage
-                    ? 'z-10 border-blue-300 bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700 dark:border-gray-700 dark:bg-gray-700 dark:text-white'
-                    : 'border-gray-300 bg-white text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white'
+                    ? "z-10 border-blue-300 bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700 dark:border-gray-700 dark:bg-gray-700 dark:text-white"
+                    : "border-gray-300 bg-white text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
                 }`}
                 onClick={(e) => {
-                  e.preventDefault()
+                  e.preventDefault();
                   if (page !== currentPage) {
-                    onPageChange(page)
+                    onPageChange(page);
                   }
                 }}
               >
                 {page}
               </Link>
             </li>
-          )
+          );
         })}
 
         <li>
           <Link
-            href={currentPage === totalPages ? '#' : '#'}
+            href={currentPage === totalPages ? "#" : "#"}
             onClick={(e) => {
               if (currentPage === totalPages) {
-                e.preventDefault()
+                e.preventDefault();
               } else {
-                onPageChange(currentPage + 1)
+                onPageChange(currentPage + 1);
               }
             }}
             className={`flex h-8 items-center justify-center rounded-e-lg border border-gray-300 px-3 leading-tight ${
               currentPage === totalPages
-                ? 'cursor-not-allowed bg-gray-200 text-gray-400'
-                : 'bg-white text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white'
+                ? "cursor-not-allowed bg-gray-200 text-gray-400"
+                : "bg-white text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
             }`}
           >
             <span className="sr-only">Next</span>
@@ -111,7 +111,7 @@ const Pagination: React.FC<PaginationProps> = ({
         </li>
       </ul>
     </nav>
-  )
-}
+  );
+};
 
-export default Pagination
+export default Pagination;

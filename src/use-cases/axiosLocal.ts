@@ -1,10 +1,10 @@
-import axios from 'axios'
+import axios from "axios";
 
 const axiosLocal = axios.create({
-  baseURL: '/api',
+  baseURL: "/api",
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
-})
+});
 
-export default axiosLocal
+export default axiosLocal;

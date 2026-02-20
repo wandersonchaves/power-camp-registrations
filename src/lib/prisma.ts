@@ -1,4 +1,4 @@
-import {PrismaClient} from '@prisma/client'
+import { PrismaClient } from "@prisma/client";
 // import {env} from 'node:process'
 
 // declare global {
@@ -10,7 +10,7 @@ import {PrismaClient} from '@prisma/client'
 //   global.prisma || new PrismaClient({log: ['query', 'info', 'warn', 'error']})
 
 export const prisma = new PrismaClient({
-  log: ['query', 'info', 'warn', 'error'],
-})
+  log: ["query", "info", "warn", "error"],
+});
 
 // if (env.NODE_ENV === 'development') global.prisma = prisma
