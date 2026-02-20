@@ -1,15 +1,15 @@
-import {render, screen} from '@testing-library/react'
+import { render, screen } from "@testing-library/react";
 
-import Home from '@/app/page'
+import Home from "@/app/page";
 
-describe('Homepage', () => {
-  it('renders the Components', () => {
-    render(<Home />)
+describe("Homepage", () => {
+  it("renders the Components", () => {
+    render(<Home />);
 
-    const heading = screen.getByText('Next.js carnet template', {
-      selector: 'h1',
-    })
+    const heading = screen.getByText("Next.js power template", {
+      selector: "h1",
+    });
 
-    expect(heading).toBeInTheDocument()
-  })
-})
+    expect(heading).toBeInTheDocument();
+  });
+});
