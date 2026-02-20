@@ -1,5 +1,5 @@
-import {createEnv} from '@t3-oss/env-nextjs'
-import {z} from 'zod'
+import { createEnv } from "@t3-oss/env-nextjs";
+import { z } from "zod";
 
 const serverEnv = {
   APP_URL: z.string().url().min(1),
@@ -12,7 +12,7 @@ const serverEnv = {
   GOOGLE_SITE_VERIFICATION_ID: z.string().optional(),
   NEXTAUTH_SECRET: z.string().min(1),
   NEXTAUTH_URL: z.string().url().optional(),
-}
+};
 
 export const env = createEnv({
   server: serverEnv,
@@ -28,4 +28,4 @@ export const env = createEnv({
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
     NEXTAUTH_URL: process.env.NEXTAUTH_URL,
   },
-})
+});

@@ -50,9 +50,9 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts  Account[]
-  sessions  Session[]
-  customers Customer[]
+  accounts     Account[]
+  sessions     Session[]
+  participants Participant[]
 }
 
 model VerificationToken {
@@ -63,69 +63,142 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-model Customer {
-  id              String             @id @default(cuid())
-  name            String
-  cpf             String             @unique
-  birthDate       DateTime?
-  phone           String?
-  email           String?
-  address         String?
-  postalCode      String?
-  spouseName      String?
-  status          CustomerStatusEnum @default(WAITING_LIST)
-  carnetGenerated Boolean            @default(false)
-  carnets         Carnet[]
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id])
-
+model Event {
+  id        String   @id @default(cuid())
+  name      String
+  year      Int
+  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
+  updatedAt DateTime @updatedAt
+
+  participants Participant[]
+  recurrences  PixAutoRecurrence[]
 }
 
-model Carnet {
-  id String @id @default(cuid())
-
-  carnetId   Int      @unique
-  status     String
-  cover      String
-  link       String
-  carnetLink String
-  repeats    Int
-  value      Int
-  customId   String?  @default("")
-  charges    Charge[]
-
-  customerId String
-  customer   Customer @relation(fields: [customerId], references: [id])
+model Participant {
+  id       String  @id @default(cuid())
+  eventId  String
+  userId   String
+  fullName String
+  cpf      String
+  email    String?
+  phone    String?
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
+  updatedAt DateTime @updatedAt
+
+  event       Event               @relation(fields: [eventId], references: [id])
+  user        User                @relation(fields: [userId], references: [id])
+  recurrences PixAutoRecurrence[]
+
+  @@unique([eventId, cpf])
+  @@index([eventId])
 }
 
-model Charge {
-  id String @id @default(cuid())
+model PixAutoRecurrence {
+  id            String @id @default(cuid())
+  eventId       String
+  participantId String
 
-  chargeId   Int      @unique
-  parcel     Int
-  status     String
-  value      Int
-  expireAt   DateTime
-  url        String
-  parcelLink String?  @default("")
+  // Efí
+  idRec         String?   @unique
+  status        String
+  valorRec      String
+  periodicidade String
+  dataInicial   DateTime
+  dataFinal     DateTime?
+  contrato      String
+  objeto        String?
 
-  carnetId String
-  carnet   Carnet @relation(fields: [carnetId], references: [id])
+  // Location / QR
+  locId         Int?
+  locationUrl   String?
+  pixCopiaECola String?
+  jornada       String?
+
+  // idempotência do seu sistema (evita duplicar rec)
+  idempotencyKey String @unique
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
+  updatedAt DateTime @updatedAt
+
+  event         Event             @relation(fields: [eventId], references: [id])
+  participant   Participant       @relation(fields: [participantId], references: [id])
+  solicitations PixAutoSolicRec[]
+  charges       PixAutoCobr[]
+
+  @@index([eventId])
+  @@index([participantId])
+  @@index([status])
 }
 
-enum CustomerStatusEnum {
-  WAITING_LIST
-  CONFIRMED
-  CANCELED
-  INACTIVE
-  ACTIVE
+model PixAutoSolicRec {
+  id           String @id @default(cuid())
+  recurrenceId String
+
+  // Efí
+  idSolicRec    String?  @unique
+  status        String
+  dataExpiracao DateTime
+
+  // Destinatário (pagador)
+  agencia String
+  conta   String
+  cpf     String
+  ispb    String
+
+  // snapshot/auditoria
+  recPayload Json?
+
+  idempotencyKey String @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  recurrence PixAutoRecurrence @relation(fields: [recurrenceId], references: [id])
+
+  @@index([recurrenceId])
+  @@index([status, dataExpiracao])
+}
+
+model PixAutoCobr {
+  id           String @id @default(cuid())
+  recurrenceId String
+
+  // Efí
+  txid           String?  @unique
+  status         String
+  dataVencimento DateTime
+  valorOriginal  String
+  infoAdicional  String?
+
+  ajusteDiaUtil       Boolean @default(false)
+  politicaRetentativa String?
+
+  // idempotência para criação de cobrança
+  idempotencyKey String @unique
+
+  // payload/auditoria (opcional)
+  payload Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  recurrence PixAutoRecurrence @relation(fields: [recurrenceId], references: [id])
+
+  @@index([recurrenceId])
+  @@index([status])
+  @@index([dataVencimento])
+}
+
+model EfiWebhookEvent {
+  id          String    @id @default(cuid())
+  kind        String // "rec" | "cobr"
+  externalId  String // se não existir, use hash do payload
+  payload     Json
+  receivedAt  DateTime  @default(now())
+  processedAt DateTime?
+
+  @@unique([kind, externalId])
+  @@index([kind, receivedAt])
 }
