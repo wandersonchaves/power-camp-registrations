@@ -1,5 +1,5 @@
-<a href="https://next-carnet-nexttech.vercel.app/">
-<img src="https://github.com/wandersonchaves/next-carnet/assets/76774237/44b552ff-43aa-441f-b1d0-de9bdfc2a73f" alt="thubnail">
+<a href="https://next-power-nexttech.vercel.app/">
+<img src="https://github.com/wandersonchaves/next-power/assets/76774237/44b552ff-43aa-441f-b1d0-de9bdfc2a73f" alt="thubnail">
 </a>
 <p align="center">
   <a href="#-features"><strong>Features</strong></a> ·
@@ -41,7 +41,7 @@
 
 Easily deploy your Next.js app with <a href="https://vercel.com/">Vercel</a> by clicking the button below:
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/wandersonchaves/next-carnet)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/wandersonchaves/next-power)
 
 ## 🎯 Getting started
 
@@ -49,18 +49,18 @@ Easily deploy your Next.js app with <a href="https://vercel.com/">Vercel</a> by 
 
 1. Using this repository as template
 
-   ![use-this-template-button](https://github.com/wandersonchaves/next-carnet/assets/76774237/f25c9a29-41de-4865-aa38-c032b9346169)
+   ![use-this-template-button](https://github.com/wandersonchaves/next-power/assets/76774237/f25c9a29-41de-4865-aa38-c032b9346169)
 
 2. Using `create-next-app`
 
    ```bash
-   npx create-next-app -e https://github.com/wandersonchaves/next-carnet my-project-name
+   npx create-next-app -e https://github.com/wandersonchaves/next-power my-project-name
    ```
 
 3. Using `git clone`
 
    ```bash
-   git clone https://github.com/wandersonchaves/next-carnet my-project-name
+   git clone https://github.com/wandersonchaves/next-power my-project-name
    ```
 
 ### 2. Install dependencies
