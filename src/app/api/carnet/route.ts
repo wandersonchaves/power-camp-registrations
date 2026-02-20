@@ -1,7 +1,7 @@
 import {NextResponse} from 'next/server'
 
-import {saveCarnetData} from '@/services/carnetService'
-import {createCarnet} from '@/services/efipayService'
+import {saveCarnetData} from '@/use-cases/carnetService'
+import {createCarnet} from '@/use-cases/efipayService'
 import {mapEfiPayDataToCarnet} from '@/utils/mappers'
 import {transformCustomerDataToCustomer} from '@/utils/transformers'
 import {validateCreateChargeBody} from '@/utils/validators'

@@ -1,6 +1,6 @@
 import {NextResponse} from 'next/server'
 
-import axiosEfi from '@/services/axiosEfi'
+import axiosEfi from '@/use-cases/axiosEfi'
 
 export async function PUT(
   request: Request,

@@ -6,7 +6,7 @@ import {authOptions} from '../auth/[...nextauth]/auth-options'
 
 import {prisma} from '@/lib/prisma'
 import {customerSchema} from '@/schemas/customerSchema'
-import {getCustomers} from '@/services/customerService'
+import {getCustomers} from '@/use-cases/customerService'
 
 export async function GET(request: NextRequest): Promise<Response> {
   try {

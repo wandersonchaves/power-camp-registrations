@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 import {env} from '@/env.mjs'
-import axiosEfi from '@/services/axiosEfi'
+import axiosEfi from '@/use-cases/axiosEfi'
 
 const AUTH_URL =
   process.env.EFI_SANDBOX === 'false'

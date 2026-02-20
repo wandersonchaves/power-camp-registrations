@@ -3,8 +3,8 @@ import {CustomerStatusEnum} from '@prisma/client'
 
 import ParcelDetailsModal from '../Modals/ParcelDetailsModal'
 
-import {cancelCarnet, updateCarnetStatus} from '@/services/carnetService'
 import type {Customer} from '@/types'
+import {cancelCarnet, updateCarnetStatus} from '@/use-cases/carnetService'
 
 interface CustomerTableProps {
   customers: Customer[]

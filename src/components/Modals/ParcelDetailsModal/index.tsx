@@ -4,7 +4,7 @@ import Link from 'next/link'
 import {Button} from '@/components/ui/button'
 import {Input} from '@/components/ui/input'
 import Modal from '@/components/ui/modal'
-import axiosLocal from '@/services/axiosLocal'
+import axiosLocal from '@/use-cases/axiosLocal'
 
 interface Parcel {
   charge_id: number
