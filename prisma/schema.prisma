@@ -220,14 +220,14 @@ model PixAutoCobr {
 }
 
 model EfiWebhookEvent {
-  id          String    @id @default(cuid())
-  kind        String // "rec" | "cobr"
-  externalId  String // se não existir, use hash do payload
-  payload     Json
+  id         String   @id @default(cuid())
+  kind       String   // 'webhookrec' | 'webhookcobr'
+  externalId String   // hash do payload para idempotência
+  payload    Json
   receivedAt  DateTime  @default(now())
   processedAt DateTime?
 
-  @@unique([kind, externalId])
+  @@unique([kind, externalId], name: "kind_externalId")
   @@index([kind, receivedAt])
 }
 
