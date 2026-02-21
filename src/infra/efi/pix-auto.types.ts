@@ -1,27 +1,23 @@
 // src/infra/efi/pix-auto.types.ts
-export type Periodicidade = "MENSAL" | "SEMANAL" | "ANUAL" | "DIARIA" | string;
 
-export type RecStatus =
-  | "CRIADA"
-  | "APROVADA"
-  | "REPROVADA"
-  | "CANCELADA"
-  | string;
+// pattern para permitir novos valores sem perder autocomplete
+type OpenStringUnion<T extends string> = T | (string & {});
 
-export type SolicRecStatus =
-  | "CRIADA"
-  | "CANCELADA"
-  | "EXPIRADA"
-  | "APROVADA"
-  | string;
+export type Periodicidade = OpenStringUnion<
+  "MENSAL" | "SEMANAL" | "ANUAL" | "DIARIA" | "TRIMESTRAL" | "SEMESTRAL"
+>;
 
-export type CobrStatus =
-  | "CRIADA"
-  | "ATIVA"
-  | "CANCELADA"
-  | "AGENDADA"
-  | "EXPIRADA"
-  | string;
+export type RecStatus = OpenStringUnion<
+  "CRIADA" | "APROVADA" | "REPROVADA" | "CANCELADA"
+>;
+
+export type SolicRecStatus = OpenStringUnion<
+  "CRIADA" | "CANCELADA" | "EXPIRADA" | "APROVADA"
+>;
+
+export type CobrStatus = OpenStringUnion<
+  "CRIADA" | "ATIVA" | "CANCELADA" | "AGENDADA" | "EXPIRADA"
+>;
 
 export type CreateRecRequest = {
   vinculo: {
@@ -56,6 +52,9 @@ export type RecResponse = {
   };
   loc?: { id: number; location: string; criacao?: string; idRec?: string };
   dadosQR?: { jornada?: string; pixCopiaECola?: string };
+
+  // compatibilidade para campos extras
+  [k: string]: unknown;
 };
 
 export type CreateSolicRecRequest = {
@@ -81,6 +80,8 @@ export type SolicRecResponse = {
     ispbParticipante: string;
   };
   recPayload?: unknown;
+
+  [k: string]: unknown;
 };
 
 export type CreateCobrRequest = {
@@ -112,6 +113,8 @@ export type CobrResponse = {
   infoAdicional?: string;
   ajusteDiaUtil?: boolean;
   politicaRetentativa?: string;
+
+  [k: string]: unknown;
 };
 
 export type LocRecResponse = {
@@ -119,11 +122,13 @@ export type LocRecResponse = {
   location: string;
   tipoCob?: string;
   criacao?: string;
+
+  [k: string]: unknown;
 };
 
 export type CreateLocRecRequest = Record<string, never>;
 
-// ✅ Cobrança imediata: adiciona `loc?: number` (Jornada 3)
+// Cobrança imediata
 export type CreateCobRequest = {
   calendario?: { expiracao?: number };
   devedor?: {
@@ -135,8 +140,6 @@ export type CreateCobRequest = {
   chave?: string;
   solicitacaoPagador?: string;
   infoAdicionais?: Array<{ nome: string; valor: string }>;
-
-  // ✅ quando precisar usar loc em COB, o formato correto é objeto, não number
   loc?: { id: number };
 };
 
@@ -149,4 +152,6 @@ export type CobResponse = {
   loc?: { id: number; location: string; criacao?: string; tipoCob?: string };
   pixCopiaECola?: string;
   devedor?: { cpf?: string; cnpj?: string; nome?: string };
+
+  [k: string]: unknown;
 };
