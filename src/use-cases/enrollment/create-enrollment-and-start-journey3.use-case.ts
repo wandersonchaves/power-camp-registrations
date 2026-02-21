@@ -1,9 +1,9 @@
 import { pixAutoClient } from "@/infra/efi/pix-auto.client";
 import { sha256 } from "@/lib/crypto";
 import { AppError } from "@/lib/http-errors";
-import { toPrismaJsonNullableInput } from "@/lib/json";
 import { log } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
+import { asInputJson } from "@/lib/prisma-json";
 import { buildTxid } from "@/lib/txid";
 
 type Input = {
@@ -132,7 +132,7 @@ export async function createEnrollmentAndStartJourney3UseCase(input: Input) {
         createdAtEfi: cob.calendario?.criacao
           ? new Date(cob.calendario.criacao)
           : null,
-        payload: toPrismaJsonNullableInput(cob),
+        payload: asInputJson(cob),
       },
     });
 

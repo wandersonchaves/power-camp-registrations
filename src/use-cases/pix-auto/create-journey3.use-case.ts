@@ -1,8 +1,8 @@
 import { pixAutoClient } from "@/infra/efi/pix-auto.client";
 import { sha256 } from "@/lib/crypto";
 import { AppError } from "@/lib/http-errors";
-import { toPrismaJsonNullableInput } from "@/lib/json";
 import { prisma } from "@/lib/prisma";
+import { asInputJson } from "@/lib/prisma-json";
 
 type Input = {
   eventId: string;
@@ -89,7 +89,7 @@ export async function createJourney3UseCase(input: Input) {
     update: {
       txid: cob.txid,
       status: cob.status ?? "CRIADA",
-      payload: toPrismaJsonNullableInput(cob),
+      payload: asInputJson(cob),
     },
     create: {
       eventId: input.eventId,
@@ -101,7 +101,7 @@ export async function createJourney3UseCase(input: Input) {
       criadoEm: cob.calendario?.criacao
         ? new Date(cob.calendario.criacao)
         : null,
-      payload: toPrismaJsonNullableInput(cob),
+      payload: asInputJson(cob),
     },
   });
 

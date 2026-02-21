@@ -1,7 +1,7 @@
 import { pixAutoClient } from "@/infra/efi/pix-auto.client";
 import { AppError } from "@/lib/http-errors";
-import { toPrismaJsonNullableInput } from "@/lib/json";
 import { prisma } from "@/lib/prisma";
+import { asInputJson } from "@/lib/prisma-json";
 import { buildTxid } from "@/lib/txid";
 
 type Input = {
@@ -79,7 +79,7 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
       ajusteDiaUtil: input.ajusteDiaUtil ?? true,
       politicaRetentativa: resp.politicaRetentativa ?? null,
       idempotencyKey: txid, // simples: txid como idempotencyKey
-      payload: toPrismaJsonNullableInput(resp),
+      payload: asInputJson(resp),
     },
   });
 }
