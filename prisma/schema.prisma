@@ -295,43 +295,43 @@ model Enrollment {
   id            String           @id @default(cuid())
   eventId       String
   participantId String
-  teamId        String
+  teamId        String?          // ✅ agora opcional
 
   status        EnrollmentStatus @default(PENDING)
   reservedAt    DateTime         @default(now())
   confirmedAt   DateTime?
 
-  // 1 inscrição por participante por evento
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   event       Event       @relation(fields: [eventId], references: [id])
   participant Participant @relation(fields: [participantId], references: [id])
-  team        Team        @relation(fields: [teamId], references: [id])
+  team        Team?       @relation(fields: [teamId], references: [id]) // ✅ opcional
 
   initialPayment InitialPaymentAttempt?
 
   @@unique([eventId, participantId])
-  @@index([eventId, teamId, status])
+  // ✅ índices com teamId opcional: mantemos, mas sem depender de teamId sempre existir
+  @@index([eventId, status])
   @@index([teamId, status])
 }
 
 model InitialPaymentAttempt {
-  id            String        @id @default(cuid())
-  enrollmentId  String        @unique
+  id             String   @id @default(cuid())
+  enrollmentId   String   @unique
 
   // Efí cobrança imediata (Jornada 3)
-  txid          String?       @unique
-  status        PaymentStatus @default(CREATED)
+  txid           String?
+  status         PaymentStatus
   createdAtEfi  DateTime?
   paidAt        DateTime?
 
-  amount        String
-  payload       Json?
+  amount         String
+  payload        Json     @default("{}")
 
-  idempotencyKey String       @unique
+  idempotencyKey String   @unique
 
-  createdAt DateTime @default(now())
+  createdAt      DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   enrollment Enrollment @relation(fields: [enrollmentId], references: [id])
