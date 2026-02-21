@@ -327,7 +327,7 @@ model InitialPaymentAttempt {
   enrollmentId   String   @unique
 
   // Efí cobrança imediata (Jornada 3)
-  txid           String?
+  txid           String   // ✅ sem ?
   status         PaymentStatus
   createdAtEfi  DateTime?
   paidAt        DateTime?
@@ -335,10 +335,10 @@ model InitialPaymentAttempt {
   amount         String
   payload        Json     @default("{}")
 
-  idempotencyKey String   @unique
+  idempotencyKey String
 
   createdAt      DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt      DateTime @updatedAt
 
   enrollment Enrollment @relation(fields: [enrollmentId], references: [id])
 
