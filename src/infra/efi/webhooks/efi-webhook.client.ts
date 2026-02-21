@@ -1,40 +1,38 @@
+// src/infra/efi/webhooks/efi-webhook.client.ts
+import { getEfiHttpClient } from "../efi.http";
 import type {
   EfiWebhookConfigRequest,
   EfiWebhookConfigResponse,
 } from "./efi-webhook.types";
 
-import { getEfiHttpClient } from "@/infra/efi/efi.http";
+function http() {
+  return getEfiHttpClient();
+}
 
 export const efiWebhookClient = {
   webhookcobr: {
     async set(body: EfiWebhookConfigRequest): Promise<void> {
-      const http = getEfiHttpClient();
-      await http.put("/v2/webhookcobr", body);
+      await http().put("/v2/webhookcobr", body);
     },
     async get(): Promise<EfiWebhookConfigResponse> {
-      const http = getEfiHttpClient();
-      const res = await http.get<EfiWebhookConfigResponse>("/v2/webhookcobr");
+      const res = await http().get<EfiWebhookConfigResponse>("/v2/webhookcobr");
       return res.data;
     },
     async delete(): Promise<void> {
-      const http = getEfiHttpClient();
-      await http.delete("/v2/webhookcobr");
+      await http().delete("/v2/webhookcobr");
     },
   },
 
   webhookrec: {
     async set(body: EfiWebhookConfigRequest): Promise<void> {
-      const http = getEfiHttpClient();
-      await http.put("/v2/webhookrec", body);
+      await http().put("/v2/webhookrec", body);
     },
     async get(): Promise<EfiWebhookConfigResponse> {
-      const http = getEfiHttpClient();
-      const res = await http.get<EfiWebhookConfigResponse>("/v2/webhookrec");
+      const res = await http().get<EfiWebhookConfigResponse>("/v2/webhookrec");
       return res.data;
     },
     async delete(): Promise<void> {
-      const http = getEfiHttpClient();
-      await http.delete("/v2/webhookrec");
+      await http().delete("/v2/webhookrec");
     },
   },
 };
