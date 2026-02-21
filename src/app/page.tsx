@@ -25,6 +25,11 @@ const webhookRoutes = [
 export default function HomePage() {
   const hasEventId = Boolean(process.env.POWERCAMP_EVENT_ID);
 
+  // ✅ Ajuste aqui o destino "público" correto da inscrição:
+  // - se você criou route group (public) com page em /enroll, mantenha "/enroll"
+  // - se a inscrição agora está em outra rota pública (ex: /inscricao), troque aqui
+  const enrollHref = "/enroll";
+
   return (
     <main className="min-h-screen bg-gray-50 text-gray-900">
       <div className="mx-auto max-w-4xl px-4 py-10">
@@ -40,10 +45,19 @@ export default function HomePage() {
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {/* ✅ CTA principal: inscrição/pagamento (público) */}
+              <Link
+                href={enrollHref}
+                className="inline-flex items-center justify-center rounded-2xl bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+              >
+                Fazer inscrição
+              </Link>
+
+              {/* ✅ Admin continua existindo, mas quem não for ADMIN será barrado pelo middleware */}
               <Link
                 href="/admin/race"
-                className="inline-flex items-center justify-center rounded-2xl bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+                className="inline-flex items-center justify-center rounded-2xl border bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50"
               >
                 Abrir Admin
               </Link>
@@ -63,8 +77,8 @@ export default function HomePage() {
               value={hasEventId ? "OK" : "Pendente"}
               description={
                 hasEventId
-                  ? "POWERCAMP_EVENT_ID definido no .env"
-                  : "Defina POWERCAMP_EVENT_ID no .env para liberar o Admin"
+                  ? "POWERCAMP_EVENT_ID definido no ambiente"
+                  : "Defina POWERCAMP_EVENT_ID no ambiente para liberar o Admin"
               }
               tone={hasEventId ? "ok" : "warn"}
             />
@@ -92,7 +106,24 @@ export default function HomePage() {
         </section>
 
         <footer className="mt-8 rounded-3xl border bg-white p-6 text-sm text-gray-600 shadow-sm">
-          <div className="font-medium text-gray-900">Notas rápidas</div>
+          <div className="font-medium text-gray-900">Acesso</div>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            <li>
+              A página de <span className="font-medium">inscrição</span> é
+              pública e fica em{" "}
+              <Link className="font-mono underline" href={enrollHref}>
+                {enrollHref}
+              </Link>
+              .
+            </li>
+            <li>
+              As rotas <span className="font-mono">/admin/*</span> são restritas
+              a usuários <span className="font-medium">ADMIN</span> (via
+              middleware/NextAuth).
+            </li>
+          </ul>
+
+          <div className="mt-5 font-medium text-gray-900">Notas rápidas</div>
           <ul className="mt-2 list-disc space-y-1 pl-5">
             <li>
               Para webhookcobr, a Efí pode anexar{" "}
@@ -139,9 +170,12 @@ function RouteCard(props: {
                 {it.path}
               </div>
             </div>
+
+            {/* mantém como <a> porque é endpoint (métodos variam / pode não ser página) */}
             <a
               href={it.path}
               className="shrink-0 rounded-xl border bg-white px-3 py-2 text-xs font-medium text-gray-900 hover:bg-gray-50"
+              rel="noreferrer"
             >
               Abrir
             </a>
