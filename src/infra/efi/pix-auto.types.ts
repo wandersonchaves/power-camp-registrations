@@ -110,3 +110,31 @@ export type CobrResponse = {
   ajusteDiaUtil?: boolean;
   politicaRetentativa?: string;
 };
+
+export type LocRecResponse = {
+  id: number;
+  location: string;
+  tipoCob?: string;
+  criacao?: string;
+};
+
+export type CreateLocRecRequest = Record<string, never>;
+
+export type CreateCobRequest = {
+  // Cobrança imediata (Pix)
+  calendario?: { expiracao?: number }; // segundos (depende do endpoint)
+  valor: { original: string };
+  chave?: string;
+  solicitacaoPagador?: string;
+  infoAdicionais?: Array<{ nome: string; valor: string }>;
+};
+
+export type CobResponse = {
+  txid: string;
+  status: string;
+  valor?: { original: string };
+  calendario?: { criacao?: string; expiracao?: number };
+  location?: string;
+  loc?: { id: number; location: string; criacao?: string };
+  pixCopiaECola?: string;
+};
