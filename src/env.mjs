@@ -4,7 +4,6 @@ import { z } from "zod";
 const serverEnv = {
   APP_URL: z.string().url().min(1),
   DATABASE_URL: z.string().url().min(1),
-  EFI_API_BASE_URL: z.string().url().min(1),
   EFI_CLIENT_ID: z.string().min(1),
   EFI_CLIENT_SECRET: z.string().min(1),
   GOOGLE_CLIENT_ID: z.string().min(1),
@@ -19,7 +18,6 @@ export const env = createEnv({
   runtimeEnv: {
     APP_URL: process.env.APP_URL,
     DATABASE_URL: process.env.DATABASE_URL,
-    EFI_API_BASE_URL: process.env.EFI_API_BASE_URL,
     EFI_CLIENT_ID: process.env.EFI_CLIENT_ID,
     EFI_CLIENT_SECRET: process.env.EFI_CLIENT_SECRET,
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
