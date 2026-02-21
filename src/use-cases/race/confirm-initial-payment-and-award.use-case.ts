@@ -1,11 +1,13 @@
+import type { Prisma } from "@prisma/client";
+
 import { AppError } from "@/lib/http-errors";
-import { toPrismaJsonNullableInput } from "@/lib/json";
 import { prisma } from "@/lib/prisma";
+import { asInputJson } from "@/lib/prisma-json";
 
 type Input = {
   txid: string;
-  paidAt: Date; // momento efetivo do pagamento (preferível do webhook)
-  rawPayload?: unknown;
+  paidAt: Date;
+  rawPayload?: Prisma.JsonValue;
 };
 
 const LIMIT = 50;
@@ -38,7 +40,7 @@ export async function confirmInitialPaymentAndAwardUseCase(input: Input) {
       data: {
         status: "PAID",
         paidAt: input.paidAt,
-        payload: toPrismaJsonNullableInput(input.rawPayload),
+        payload: asInputJson(input.rawPayload),
       },
     });
 
