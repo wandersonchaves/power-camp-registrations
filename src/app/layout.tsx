@@ -3,9 +3,7 @@ import "@/styles/globals.css";
 import React from "react";
 import { Metadata } from "next";
 
-import Navbar from "@/components/navbar/navbar";
 import { ThemeProvider } from "@/components/theme-provider";
-import { ThemeSwitcher } from "@/components/theme-switcher";
 import { Toaster } from "@/components/ui/toaster";
 import { siteConfig } from "@/lib/constant";
 import { fonts } from "@/lib/fonts";
@@ -45,19 +43,15 @@ export const metadata: Metadata = {
   },
 };
 
-const RootLayout = ({ children }: React.PropsWithChildren) => {
+export default function RootLayout({ children }: React.PropsWithChildren) {
   return (
-    <html lang={"en"} suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <body className={cn("min-h-screen font-sans", fonts.join(" "))}>
         <ThemeProvider attribute="class">
-          <Navbar />
-          <main>{children}</main>
-          <ThemeSwitcher className="absolute bottom-5 right-5 z-10" />
+          {children}
           <Toaster />
         </ThemeProvider>
       </body>
     </html>
   );
-};
-
-export default RootLayout;
+}
