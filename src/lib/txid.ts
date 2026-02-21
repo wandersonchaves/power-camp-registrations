@@ -1,3 +1,4 @@
+// src/lib/txid.ts
 import { sha256 } from "@/lib/crypto";
 
 type TxidContext = {
@@ -10,6 +11,11 @@ type TxidContext = {
   installmentIndex?: number;
 };
 
+/**
+ * TXID determinístico:
+ * - 32 chars (hex) => dentro do range 26..35
+ * - alfanum (0-9 a-f)
+ */
 export function buildTxid(ctx: TxidContext) {
   const raw = [
     ctx.eventId,
@@ -21,6 +27,5 @@ export function buildTxid(ctx: TxidContext) {
     ctx.installmentIndex?.toString() ?? "",
   ].join("|");
 
-  // 32 chars hex => 32 (entre 26 e 35) e alfanumérico.
   return sha256(raw).slice(0, 32);
 }
