@@ -11,6 +11,7 @@ import type {
   CreateRecRequest,
   CreateSolicRecRequest,
   LocRecResponse,
+  PatchCobrRequest,
   RecResponse,
   SolicRecResponse,
 } from "./pix-auto.types";
@@ -300,6 +301,27 @@ export const pixAutoClient = {
         body,
       );
       return res.data;
+    },
+
+    async patch(txid: string, body: PatchCobrRequest): Promise<CobrResponse> {
+      assertValidTxid(txid);
+      const http = getEfiHttpClient();
+
+      try {
+        const res = await http.patch<CobrResponse>(
+          `/v2/cobr/${encodeURIComponent(txid)}`,
+          body,
+        );
+        return res.data;
+      } catch (err) {
+        logAxiosError(err, {
+          op: "PATCH /v2/cobr/:txid",
+          txid,
+          baseURL: http.defaults.baseURL,
+          url: `/v2/cobr/${txid}`,
+        });
+        throw err;
+      }
     },
   },
 
