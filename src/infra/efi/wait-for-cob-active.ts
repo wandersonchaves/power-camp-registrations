@@ -1,47 +1,44 @@
 // src/infra/efi/wait-for-cob-active.ts
-import { pixAutoClient } from "./pix-auto.client";
+import { pixAutoClient } from "@/infra/efi/pix-auto.client";
+import { assertValidTxid } from "@/infra/efi/txid";
+import { log } from "@/lib/logger";
 
 function sleep(ms: number) {
-  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+  return new Promise((r) => setTimeout(r, ms));
 }
 
-const ACTIVE_STATUSES = new Set<string>(["ATIVA"]);
-const FINAL_BAD_STATUSES = new Set<string>([
-  "REMOVIDA_PELO_USUARIO_RECEBEDOR",
-  "REMOVIDA_PELO_PSP",
-  "CANCELADA",
-]);
+type CobLike = { status?: unknown };
 
 export async function waitForCobActive(
   txid: string,
-): Promise<{ status: string }> {
-  const maxMs = 10_000;
-  const start = Date.now();
+  opts?: {
+    maxAttempts?: number;
+    baseDelayMs?: number;
+    maxDelayMs?: number;
+    getCob?: (txid: string) => Promise<CobLike>;
+  },
+) {
+  assertValidTxid(txid);
 
-  let attempt = 0;
+  const maxAttempts = opts?.maxAttempts ?? 8;
+  const baseDelayMs = opts?.baseDelayMs ?? 150;
+  const maxDelayMs = opts?.maxDelayMs ?? 1500;
 
-  while (Date.now() - start < maxMs) {
-    attempt += 1;
+  const getCob = opts?.getCob ?? ((t: string) => pixAutoClient.cob.get(t));
 
-    const cob = await pixAutoClient.cob.get(txid);
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const cob = await getCob(txid);
     const status = String(cob.status ?? "").toUpperCase();
 
-    console.log(`[EFI COB] txid=${txid} attempt=${attempt} status=${status}`);
+    // log só a cada tentativa, mas sem payload
+    log("info", "[EFI COB] poll", { txid, attempt, status });
 
-    if (ACTIVE_STATUSES.has(status)) return { status };
+    if (status.includes("ATIV")) return;
 
-    if (FINAL_BAD_STATUSES.has(status)) {
-      throw new Error(
-        `Cobrança entrou em status final inválido para Jornada 3: ${status}`,
-      );
-    }
-
-    const delay = Math.min(1500, 200 + attempt * 150);
+    // backoff linear com teto (simples e suficiente aqui)
+    const delay = Math.min(maxDelayMs, baseDelayMs * attempt);
     await sleep(delay);
   }
 
-  const last = await pixAutoClient.cob.get(txid);
-  throw new Error(
-    `Timeout aguardando cobrança ficar ATIVA. Status final: ${String(last.status ?? "")}`,
-  );
+  throw new Error(`COB não ficou ATIVA a tempo (txid=${txid}).`);
 }
