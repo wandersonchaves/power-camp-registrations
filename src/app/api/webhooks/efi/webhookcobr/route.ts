@@ -43,20 +43,20 @@ export async function POST(req: Request) {
       const evt = normalizePaymentEvent(parsedBase.data);
 
       if (evt.isPaid) {
-        const res = await confirmInitialPaymentAndAwardUseCase({
+        const result = await confirmInitialPaymentAndAwardUseCase({
           txid: evt.txid,
           paidAt: evt.paidAt,
           rawPayload: raw,
         });
 
         return NextResponse.json(
-          { ok: true, processed: true, ...res },
+          { ...result, processed: true },
           { status: 200 },
         );
       }
 
       return NextResponse.json(
-        { ok: true, processed: false, status: evt.status },
+        { processed: false, status: evt.status },
         { status: 200 },
       );
     }
