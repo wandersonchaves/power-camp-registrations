@@ -2,7 +2,6 @@ import type { Prisma } from "@prisma/client";
 
 import { AppError } from "@/lib/http-errors";
 import { prisma } from "@/lib/prisma";
-import { asInputJson } from "@/lib/prisma-json";
 
 type Input = {
   txid: string;
@@ -40,7 +39,7 @@ export async function confirmInitialPaymentAndAwardUseCase(input: Input) {
       data: {
         status: "PAID",
         paidAt: input.paidAt,
-        payload: asInputJson(input.rawPayload),
+        payload: input.rawPayload ?? undefined,
       },
     });
 
