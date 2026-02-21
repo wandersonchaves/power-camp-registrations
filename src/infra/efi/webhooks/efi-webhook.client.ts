@@ -13,8 +13,8 @@ export const efiWebhookClient = {
     },
     async get(): Promise<EfiWebhookConfigResponse> {
       const http = getEfiHttpClient();
-      const res = await http.get("/v2/webhookcobr");
-      return res.data as EfiWebhookConfigResponse;
+      const res = await http.get<EfiWebhookConfigResponse>("/v2/webhookcobr");
+      return res.data;
     },
     async delete(): Promise<void> {
       const http = getEfiHttpClient();
@@ -29,8 +29,8 @@ export const efiWebhookClient = {
     },
     async get(): Promise<EfiWebhookConfigResponse> {
       const http = getEfiHttpClient();
-      const res = await http.get("/v2/webhookrec");
-      return res.data as EfiWebhookConfigResponse;
+      const res = await http.get<EfiWebhookConfigResponse>("/v2/webhookrec");
+      return res.data;
     },
     async delete(): Promise<void> {
       const http = getEfiHttpClient();
