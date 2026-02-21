@@ -152,8 +152,8 @@ export async function listEnrollments(params: {
     reservedAt: r.reservedAt,
     confirmedAt: r.confirmedAt,
 
-    teamCode: r.team.code,
-    teamName: r.team.name,
+    teamCode: r.team?.code ?? "LOTE_ZERO",
+    teamName: r.team?.name ?? "Lote Zero",
 
     participantId: r.participant.id,
     participantName: r.participant.fullName,
