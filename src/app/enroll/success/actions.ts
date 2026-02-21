@@ -1,49 +1,94 @@
+// src/app/enroll/success/actions.ts
 "use server";
 
-import { pixAutoClient } from "@/infra/efi/pix-auto.client";
-import { prisma } from "@/infra/prisma";
+import type { Prisma } from "@prisma/client";
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
-export async function refreshRecQr(enrollmentId: string) {
+import { pixAutoClient } from "@/infra/efi/pix-auto.client";
+import { prisma } from "@/lib/prisma";
+
+function asObject(
+  v: Prisma.JsonValue | null | undefined,
+): Record<string, unknown> {
+  return v && typeof v === "object" && !Array.isArray(v)
+    ? (v as Record<string, unknown>)
+    : {};
+}
+
+export async function refreshRecurrence(formData: FormData) {
+  const enrollmentId = String(formData.get("enrollmentId") ?? "");
+
+  if (!enrollmentId) {
+    revalidatePath("/enroll/success");
+    redirect("/enroll");
+  }
+
   const enrollment = await prisma.enrollment.findUnique({
     where: { id: enrollmentId },
-    include: { participant: true },
+    select: {
+      id: true,
+      eventId: true,
+      participantId: true,
+      initialPayment: { select: { txid: true, payload: true } },
+    },
   });
-  if (!enrollment) throw new Error("Enrollment não encontrado.");
 
-  // pega a recorrência mais recente desse participante/evento (ajuste se você salva 1:1)
-  const rec = await prisma.pixAutoRecurrence.findFirst({
+  // não quebra a navegação; apenas revalida e volta
+  if (!enrollment?.initialPayment?.txid) {
+    revalidatePath("/enroll/success");
+    redirect(
+      `/enroll/success?enrollmentId=${encodeURIComponent(enrollmentId)}`,
+    );
+  }
+
+  const txid = enrollment.initialPayment.txid;
+
+  const recurrence = await prisma.pixAutoRecurrence.findFirst({
     where: {
-      participantId: enrollment.participantId,
       eventId: enrollment.eventId,
+      participantId: enrollment.participantId,
     },
     orderBy: { createdAt: "desc" },
-  });
-  if (!rec?.idRec) return { ok: true, updated: false };
-
-  // txid do pagamento inicial para query param (como você testou no Postman)
-  const attempt = await prisma.initialPaymentAttempt.findUnique({
-    where: { enrollmentId },
+    select: { id: true, idRec: true },
   });
 
-  const txid = attempt?.txid ?? undefined;
-  const recGet = await pixAutoClient.rec.get(
-    rec.idRec,
-    txid ? { txid } : undefined,
-  );
+  if (!recurrence?.idRec) {
+    revalidatePath("/enroll/success");
+    redirect(
+      `/enroll/success?enrollmentId=${encodeURIComponent(enrollmentId)}`,
+    );
+  }
+
+  const recGet = await pixAutoClient.rec.get(recurrence.idRec, { txid });
 
   const pixCopiaECola = recGet.dadosQR?.pixCopiaECola ?? null;
   const jornada = recGet.dadosQR?.jornada ?? null;
 
-  if (!pixCopiaECola && !jornada) return { ok: true, updated: false };
+  await prisma.$transaction(async (tx) => {
+    await tx.pixAutoRecurrence.update({
+      where: { id: recurrence.id },
+      data: {
+        status: recGet.status ?? undefined,
+        ...(pixCopiaECola ? { pixCopiaECola } : {}),
+        ...(jornada ? { jornada } : {}),
+      },
+    });
 
-  await prisma.pixAutoRecurrence.update({
-    where: { id: rec.id },
-    data: {
-      pixCopiaECola,
-      jornada,
-      status: recGet.status ?? rec.status,
-    },
+    // merge seguro (sem sobrescrever o shape inteiro)
+    const prev = asObject(enrollment.initialPayment?.payload);
+
+    await tx.initialPaymentAttempt.update({
+      where: { enrollmentId },
+      data: {
+        payload: {
+          ...prev,
+          recGet,
+        },
+      },
+    });
   });
 
-  return { ok: true, updated: true };
+  revalidatePath("/enroll/success");
+  redirect(`/enroll/success?enrollmentId=${encodeURIComponent(enrollmentId)}`);
 }
