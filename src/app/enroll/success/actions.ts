@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 
 import { pixAutoClient } from "@/infra/efi/pix-auto.client";
 import { prisma } from "@/lib/prisma";
+import { asInputJson } from "@/lib/prisma-json";
 
 function asObject(
   v: Prisma.JsonValue | null | undefined,
@@ -81,10 +82,10 @@ export async function refreshRecurrence(formData: FormData) {
     await tx.initialPaymentAttempt.update({
       where: { enrollmentId },
       data: {
-        payload: {
-          ...prev,
+        payload: asInputJson({
+          ...(prev ?? {}),
           recGet,
-        },
+        }),
       },
     });
   });
