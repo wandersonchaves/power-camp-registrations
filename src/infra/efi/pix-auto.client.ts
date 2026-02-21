@@ -87,7 +87,10 @@ export const pixAutoClient = {
     },
     async put(txid: string, body: CreateCobRequest): Promise<CobResponse> {
       const http = getEfiHttpClient();
-      const res = await http.put(`/v2/cob/${encodeURIComponent(txid)}`, body);
+      const res = await http.put<CobResponse>(
+        `/v2/cob/${encodeURIComponent(txid)}`,
+        body,
+      );
       return res.data;
     },
     async get(txid: string): Promise<CobResponse> {
