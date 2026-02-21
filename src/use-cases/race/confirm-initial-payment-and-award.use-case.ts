@@ -11,54 +11,87 @@ type Input = {
 
 const LIMIT = 50;
 const AWARD_KEY = "FIRST_50_PAID";
-const AWARD_POINTS = 100; // <-- ajuste aqui
+const AWARD_POINTS = 100;
 
 export async function confirmInitialPaymentAndAwardUseCase(input: Input) {
   return prisma.$transaction(async (tx) => {
-    // 1) localizar tentativa pelo txid
     const attempt = await tx.initialPaymentAttempt.findFirst({
       where: { txid: input.txid },
-      include: { enrollment: { include: { team: true, event: true } } },
+      select: {
+        id: true,
+        status: true,
+        enrollmentId: true,
+        enrollment: {
+          select: {
+            id: true,
+            eventId: true,
+            teamId: true,
+            status: true,
+            team: { select: { id: true, code: true } },
+          },
+        },
+      },
     });
 
-    if (!attempt)
+    if (!attempt) {
       throw new AppError(
         "Initial payment attempt not found",
         404,
         "INITIAL_PAYMENT_NOT_FOUND",
       );
+    }
 
-    // idempotência: se já está PAID, não reprocessa
+    // idempotência: já processado
     if (attempt.status === "PAID") {
       return { ok: true, alreadyProcessed: true };
     }
 
-    // 2) marcar attempt como PAID e guardar paidAt
-    const updatedAttempt = await tx.initialPaymentAttempt.update({
+    // marca attempt como pago
+    await tx.initialPaymentAttempt.update({
       where: { id: attempt.id },
       data: {
         status: "PAID",
         paidAt: input.paidAt,
-        payload: input.rawPayload ?? undefined,
+        ...(input.rawPayload ? { payload: input.rawPayload } : {}),
       },
     });
 
-    // 3) confirmar enrollment
+    // confirma enrollment (se já confirmado, não altera)
     const updatedEnrollment = await tx.enrollment.update({
       where: { id: attempt.enrollmentId },
-      data: { status: "CONFIRMED", confirmedAt: input.paidAt },
-      include: { team: true, event: true },
+      data: {
+        status: "CONFIRMED",
+        confirmedAt: input.paidAt,
+      },
+      select: {
+        id: true,
+        eventId: true,
+        teamId: true,
+        team: { select: { id: true, code: true } },
+      },
     });
+
+    // se LOTE_ZERO (sem time), não premia corrida por equipe
+    if (!updatedEnrollment.teamId) {
+      return {
+        ok: true,
+        enrollmentId: updatedEnrollment.id,
+        team: null,
+        confirmedCount: null,
+        paidAt: input.paidAt.toISOString(),
+        note: "Enrollment has no teamId (LOTE_ZERO). Award flow skipped.",
+      };
+    }
 
     const eventId = updatedEnrollment.eventId;
     const teamId = updatedEnrollment.teamId;
 
-    // 4) contar CONFIRMED por equipe
+    // conta confirmados por equipe
     const confirmedCount = await tx.enrollment.count({
       where: { eventId, teamId, status: "CONFIRMED" },
     });
 
-    // 5) Se alcançou 50 agora, registrar milestone (unique garante “uma vez”)
+    // milestone dos 50 (unique no schema para garantir 1x)
     if (confirmedCount === LIMIT) {
       await tx.teamMilestone.create({
         data: {
@@ -72,21 +105,22 @@ export async function confirmInitialPaymentAndAwardUseCase(input: Input) {
       });
     }
 
-    // 6) Decidir premiação se ainda não existe
+    // decide premiação se ainda não existe
     const existingAward = await tx.teamAward.findUnique({
       where: { eventId_awardKey: { eventId, awardKey: AWARD_KEY } },
+      select: { id: true },
     });
 
     if (!existingAward) {
-      // buscar milestones dos dois times (se existirem)
       const milestones = await tx.teamMilestone.findMany({
         where: { eventId, milestone: LIMIT },
         orderBy: { achievedAt: "asc" },
         take: 2,
+        select: { teamId: true, achievedAt: true },
       });
 
       if (milestones.length === 2) {
-        const winner = milestones[0]; // menor achievedAt vence
+        const winner = milestones[0];
 
         await tx.teamAward.create({
           data: {
@@ -106,9 +140,9 @@ export async function confirmInitialPaymentAndAwardUseCase(input: Input) {
     return {
       ok: true,
       enrollmentId: updatedEnrollment.id,
-      team: updatedEnrollment.team.code,
+      team: updatedEnrollment.team?.code,
       confirmedCount,
-      paidAt: updatedAttempt.paidAt?.toISOString(),
+      paidAt: input.paidAt.toISOString(),
     };
   });
 }
