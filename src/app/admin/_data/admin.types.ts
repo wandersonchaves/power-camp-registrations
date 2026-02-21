@@ -1,7 +1,7 @@
 import type { EnrollmentStatus, PaymentStatus, TeamCode } from "@prisma/client";
 
 export type TeamScore = Readonly<{
-  teamCode: TeamCode;
+  teamCode: TeamCode | null;
   teamName: string;
   confirmed: number;
   pending: number;
@@ -31,7 +31,7 @@ export type EnrollmentRow = Readonly<{
   reservedAt: Date;
   confirmedAt: Date | null;
 
-  teamCode: TeamCode;
+  teamCode: TeamCode | null; // ✅ aqui
   teamName: string;
 
   participantId: string;
