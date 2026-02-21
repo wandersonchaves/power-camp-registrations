@@ -12,6 +12,29 @@ import type {
   SolicRecResponse,
 } from "./pix-auto.types";
 
+export type Journey3CobImmediateParams = Readonly<{
+  txid: string;
+  valor: string;
+  solicitacaoPagador?: string;
+  loc: number; // obrigatório na Jornada 3
+}>;
+
+function normalizeMoney(value: string): string {
+  // aceita "10", "10.5", "10,50", "0010,50" -> "10.50"
+  const raw = value.trim().replace(",", ".");
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) throw new Error("Valor inválido.");
+  return n.toFixed(2);
+}
+
+type CobPutBody = Readonly<{
+  calendario: { expiracao: number };
+  valor: { original: string };
+  chave: string;
+  solicitacaoPagador?: string;
+  // loc?: number  // ⚠️ só inclua se o erro real NÃO reclamar
+}>;
+
 export const pixAutoClient = {
   locrec: {
     async create(body: CreateLocRecRequest = {}): Promise<LocRecResponse> {
@@ -23,6 +46,36 @@ export const pixAutoClient = {
       const http = getEfiHttpClient();
       const res = await http.get(`/v2/locrec/${locId}`);
       return res.data;
+    },
+  },
+
+  // ✅ Helpers específicos pro seu fluxo
+  journey3: {
+    async createCobImmediate(
+      params: Journey3CobImmediateParams,
+    ): Promise<CobResponse> {
+      const pixKey = process.env.EFI_PIX_KEY ?? "";
+      if (!pixKey) throw new Error("EFI_PIX_KEY não definida no .env");
+
+      const body: CobPutBody = {
+        calendario: { expiracao: 3600 },
+        valor: { original: normalizeMoney(params.valor) },
+        chave: pixKey,
+        ...(params.solicitacaoPagador
+          ? { solicitacaoPagador: params.solicitacaoPagador }
+          : {}),
+        // ⚠️ COMEÇE SEM loc. Se o erro real não reclamar, você adiciona depois.
+      };
+
+      // se você quer testar loc, habilite com feature flag:
+      const enableLoc = process.env.EFI_ENABLE_J3_LOC === "true";
+      if (enableLoc) {
+        // aqui não dá pra manter CobPutBody readonly sem ajustar, então faça assim:
+        const withLoc = { ...body, loc: params.loc };
+        return pixAutoClient.cob.put(params.txid, withLoc);
+      }
+
+      return pixAutoClient.cob.put(params.txid, body);
     },
   },
 
@@ -55,6 +108,7 @@ export const pixAutoClient = {
       const res = await http.post("/v2/rec", body);
       return res.data;
     },
+    // ✅ já está certo: aceita opts (txid) como 2º argumento
     async get(idRec: string, opts?: { txid?: string }): Promise<RecResponse> {
       const http = getEfiHttpClient();
       const res = await http.get(`/v2/rec/${encodeURIComponent(idRec)}`, {
