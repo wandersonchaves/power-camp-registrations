@@ -1,4 +1,3 @@
-// src/infra/efi/efi.config.ts
 import fs from "node:fs";
 
 type EfiEnv = "PROD" | "SANDBOX";
@@ -14,6 +13,10 @@ type EfiEnv = "PROD" | "SANDBOX";
  * Base URL:
  *  - Se EFI_BASE_URL existir, usa ela
  *  - Senão, resolve via EFI_ENV (default: PROD)
+ *
+ * OBS:
+ * - Este arquivo “resolve” o certificado e entrega um Buffer (`p12`) quando for PFX,
+ *   para o resto da app não precisar saber se veio de base64 ou de arquivo.
  */
 export type EfiConfig = Readonly<{
   baseUrl: string;
@@ -22,11 +25,7 @@ export type EfiConfig = Readonly<{
   clientId: string;
   clientSecret: string;
 
-  /**
-   * ✅ Buffer do certificado PFX (.p12/.pfx) já decodificado/carregado
-   * - Presente quando usar EFI_PFX_BASE64 ou EFI_PFX_PATH
-   * - Isso resolve o erro: "Property 'p12' does not exist on type 'EfiConfig'"
-   */
+  /** ✅ Buffer do certificado PFX (.p12/.pfx) já carregado/decodificado */
   p12?: Buffer;
 
   /** ✅ Passphrase do PFX (.p12/.pfx). Obrigatória quando p12 existe */
@@ -68,11 +67,12 @@ function resolveEnv(): EfiEnv {
 /**
  * ✅ Ajuste aqui as URLs oficiais conforme seu contrato/ambiente Efí.
  * - PROD geralmente: https://api.efipay.com.br
- * - HOMOLOG/SANDBOX geralmente: https://api-h.efipay.com.br
+ * - SANDBOX geralmente: https://api-h.efipay.com.br
  */
 function resolveBaseUrl(env: EfiEnv): string {
   const explicit = optionalEnv("EFI_BASE_URL");
   if (explicit) return normalizeBaseUrl(explicit);
+
   return env === "SANDBOX"
     ? "https://api-h.efipay.com.br"
     : "https://api.efipay.com.br";
@@ -93,6 +93,13 @@ function extractBase64Payload(v: string): string {
 
 function decodePfxBase64OrThrow(v: string): Buffer {
   const payload = extractBase64Payload(v).replace(/\s/g, "");
+  // validação simples (mas útil): base64 costuma ser grande
+  if (payload.length < 50) {
+    throw new Error(
+      "EFI_PFX_BASE64 parece inválido (muito curto). Verifique se está em base64.",
+    );
+  }
+
   try {
     return Buffer.from(payload, "base64");
   } catch {
@@ -133,14 +140,13 @@ export function getEfiConfig(): EfiConfig {
   const passphrase =
     optionalEnv("EFI_PASSPHRASE") ?? optionalEnv("EFI_P12_PASSPHRASE");
 
-  // ✅ Se faltou clientId/secret, já falha com lista completa
+  // ✅ se faltou clientId/secret, falha com lista completa
   if (missing.length) {
     throw new Error(
       `Variáveis de ambiente obrigatórias não definidas: ${missing.join(", ")}`,
     );
   }
 
-  // ✅ Validação de presença de certificado
   const hasPfxBase64 = Boolean(pfxBase64);
   const hasPfxPath = Boolean(pfxPath);
   const hasPemPair = Boolean(certPemPath && certKeyPemPath);
@@ -157,47 +163,55 @@ export function getEfiConfig(): EfiConfig {
     );
   }
 
-  // ✅ Monta config final
-  const cfg: EfiConfig = {
+  const baseCfg: Omit<
+    EfiConfig,
+    "p12" | "passphrase" | "certPemPath" | "certKeyPemPath" | "certPassphrase"
+  > = {
     env,
     baseUrl,
     clientId,
     clientSecret,
   };
 
-  // PFX base64 (Railway)
+  // 1) PFX base64 (Railway)
   if (hasPfxBase64) {
     if (!passphrase) {
       throw new Error(
         "EFI_PASSPHRASE não definido. É obrigatório quando usar EFI_PFX_BASE64.",
       );
     }
+
     const p12 = decodePfxBase64OrThrow(pfxBase64 as string);
+
     cfgSingleton = {
-      ...cfg,
+      ...baseCfg,
       p12,
       passphrase,
     };
+
     return cfgSingleton;
   }
 
-  // PFX path (local)
+  // 2) PFX path (local)
   if (hasPfxPath) {
     if (!passphrase) {
       throw new Error(
         "EFI_PASSPHRASE não definido. É obrigatório quando usar EFI_PFX_PATH.",
       );
     }
+
     const p12 = fileToBufferOrThrow(pfxPath as string);
+
     cfgSingleton = {
-      ...cfg,
+      ...baseCfg,
       p12,
       passphrase,
     };
+
     return cfgSingleton;
   }
 
-  // PEM pair (fallback)
+  // 3) PEM pair (fallback)
   if (!certPemPath || !certKeyPemPath) {
     throw new Error(
       "EFI_CERT_PEM_PATH e EFI_CERT_KEY_PEM_PATH são obrigatórios quando usar certificado PEM.",
@@ -205,7 +219,7 @@ export function getEfiConfig(): EfiConfig {
   }
 
   cfgSingleton = {
-    ...cfg,
+    ...baseCfg,
     certPemPath,
     certKeyPemPath,
     ...(certPassphrase ? { certPassphrase } : {}),

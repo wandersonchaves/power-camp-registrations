@@ -8,41 +8,22 @@ import { getAccessToken } from "./efi.token-provider";
 let httpSingleton: AxiosInstance | null = null;
 let agentSingleton: https.Agent | null = null;
 
-function readBase64Maybe(data: string): Buffer {
-  // aceita puro base64 ou data URL "data:application/x-pkcs12;base64,..."
-  const raw = data.includes("base64,")
-    ? (data.split("base64,").pop() ?? "")
-    : data;
-  return Buffer.from(raw, "base64");
-}
-
 export function getEfiHttpsAgent(): https.Agent {
   if (agentSingleton) return agentSingleton;
 
   const cfg = getEfiConfig();
 
-  // Preferência: PFX base64 (Railway) -> PFX path -> PEM cert/key
-  if (cfg.pfxBase64) {
-    const pfx = readBase64Maybe(cfg.pfxBase64);
+  // ✅ Preferência: PFX já resolvido em Buffer (Railway/local)
+  if (cfg.p12) {
     agentSingleton = new https.Agent({
-      pfx,
+      pfx: cfg.p12,
       passphrase: cfg.passphrase,
       keepAlive: true,
     });
     return agentSingleton;
   }
 
-  if (cfg.pfxPath) {
-    const pfx = fs.readFileSync(cfg.pfxPath);
-    agentSingleton = new https.Agent({
-      pfx,
-      passphrase: cfg.passphrase,
-      keepAlive: true,
-    });
-    return agentSingleton;
-  }
-
-  // fallback (dev / legado): PEM
+  // ✅ fallback (dev/legado): PEM
   if (cfg.certPemPath && cfg.certKeyPemPath) {
     const cert = fs.readFileSync(cfg.certPemPath);
     const key = fs.readFileSync(cfg.certKeyPemPath);
@@ -57,7 +38,7 @@ export function getEfiHttpsAgent(): https.Agent {
   }
 
   throw new Error(
-    "EFI HTTPS cert missing. Provide pfxBase64 or pfxPath or (certPemPath + certKeyPemPath).",
+    "EFI HTTPS cert missing. Provide PFX (EFI_PFX_BASE64/EFI_PFX_PATH) or PEM pair (EFI_CERT_PEM_PATH + EFI_CERT_KEY_PEM_PATH).",
   );
 }
 
@@ -78,6 +59,7 @@ export function getEfiHttpClient(): AxiosInstance {
     },
   });
 
+  // ✅ aplica Bearer token automaticamente (cache do token fica no provider)
   http.interceptors.request.use(async (config) => {
     const token = await getAccessToken();
     config.headers = config.headers ?? {};
