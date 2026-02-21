@@ -132,7 +132,7 @@ export type CreateCobRequest = {
     nome: string;
   };
   valor: { original: string };
-  chave: string;
+  chave?: string;
   solicitacaoPagador?: string;
   infoAdicionais?: Array<{ nome: string; valor: string }>;
 
