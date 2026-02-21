@@ -44,4 +44,12 @@ module.exports = {
       config: "tailwind.config.js",
     },
   },
+  overrides: [
+    {
+      files: ["next-env.d.ts"],
+      rules: {
+        "@typescript-eslint/triple-slash-reference": "off",
+      },
+    },
+  ],
 };
