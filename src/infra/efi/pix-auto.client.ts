@@ -39,7 +39,7 @@ type CobPutBodyBase = Readonly<{
   solicitacaoPagador?: string;
 }>;
 
-type CobPutBodyWithLoc = CobPutBodyBase & Readonly<{ loc: number }>;
+type CobPutBodyWithLoc = Readonly<CobPutBodyBase & { loc: { id: number } }>;
 
 export const pixAutoClient = {
   locrec: {
@@ -76,7 +76,10 @@ export const pixAutoClient = {
 
       const enableLoc = process.env.EFI_ENABLE_J3_LOC === "true";
       if (enableLoc) {
-        const withLoc: CobPutBodyWithLoc = { ...baseBody, loc: params.loc };
+        const withLoc: CobPutBodyWithLoc = {
+          ...baseBody,
+          loc: { id: params.loc },
+        };
         return pixAutoClient.cob.put(params.txid, withLoc);
       }
 
