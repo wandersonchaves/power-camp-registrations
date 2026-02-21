@@ -1,25 +1,82 @@
 "use server";
 
-import { type TeamCode } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
-import { pixAutoClient } from "@/infra/efi/pix-auto.client";
-import { waitForCobActive } from "@/infra/efi/wait-for-cob-active";
 import { prisma } from "@/lib/prisma";
+import { createEnrollmentAndStartJourney3UseCase } from "@/use-cases/enrollment/create-enrollment-and-start-journey3.use-case";
 
 const schema = z.object({
-  teamCode: z.enum(["AGUIA", "LEAO"]),
+  ticketType: z.enum(["ANTECIPADA", "LOTE_ZERO"]),
   fullName: z.string().min(3).max(120),
   cpf: z.string().min(11).max(14),
   email: z.string().email().optional().or(z.literal("")),
   phone: z.string().optional().or(z.literal("")),
-  firstPaymentAmount: z.string().regex(/^\d{1,10}\.\d{2}$/),
-  monthlyAmount: z.string().regex(/^\d{1,10}\.\d{2}$/),
+  installments: z.coerce.number().int().min(1).max(12),
 });
+
+type PlanPayload = {
+  ticketTotalTarget: string;
+  ticketTotalEffective: string;
+  installments: number;
+  installmentAmount: string;
+  firstPaymentAmount: string;
+  recurringAmount: string;
+  recurringCount: number;
+  isSinglePayment: boolean;
+  roundingDifference: string;
+};
+
+type AttemptPayload = {
+  ticketType?: "ANTECIPADA" | "LOTE_ZERO";
+  teamCode?: "AGUIA" | "LEAO" | null;
+  plan?: PlanPayload;
+};
+
+function assertEnv(name: string): string {
+  const v = process.env[name] ?? "";
+  if (!v) throw new Error(`${name} não definido.`);
+  return v;
+}
 
 function cleanCpf(cpf: string) {
   return cpf.replace(/\D/g, "");
+}
+
+function moneyToCents(v: string): number {
+  const [i, d = "00"] = String(v).split(".");
+  return Number(i) * 100 + Number(String(d).padEnd(2, "0").slice(0, 2));
+}
+
+function centsToMoney(cents: number): string {
+  const abs = Math.abs(cents);
+  const i = Math.floor(abs / 100);
+  const d = String(abs % 100).padStart(2, "0");
+  return `${cents < 0 ? "-" : ""}${i}.${d}`;
+}
+
+function computeEqualInstallmentsPlan(params: {
+  total: string;
+  installments: number;
+}): PlanPayload {
+  const totalC = moneyToCents(params.total);
+  const n = params.installments;
+
+  const installmentC = Math.floor(totalC / n);
+  const effectiveTotalC = installmentC * n;
+
+  return {
+    ticketTotalTarget: params.total,
+    ticketTotalEffective: centsToMoney(effectiveTotalC),
+    installments: n,
+    installmentAmount: centsToMoney(installmentC),
+    firstPaymentAmount: centsToMoney(installmentC),
+    recurringAmount: centsToMoney(installmentC),
+    recurringCount: Math.max(0, n - 1),
+    isSinglePayment: n === 1,
+    roundingDifference: centsToMoney(effectiveTotalC - totalC),
+  };
 }
 
 function toYYYYMMDDUTC(d: Date) {
@@ -29,192 +86,126 @@ function toYYYYMMDDUTC(d: Date) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-function addDaysUTC(days: number) {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() + days);
+function addMonthsUTC(base: Date, months: number) {
+  const d = new Date(base);
+  d.setUTCMonth(d.getUTCMonth() + months);
   return d;
 }
 
-function randomIdempotencyKey(prefix: string): string {
-  const s = crypto.randomUUID().replace(/-/g, "");
-  return `${prefix}_${s}`;
-}
-
-function mustEnv(name: string): string {
-  const v = process.env[name] ?? "";
-  if (!v) throw new Error(`${name} não definido.`);
-  return v;
+function jsonObject(
+  v: Prisma.JsonValue | null | undefined,
+): Record<string, unknown> {
+  return v && typeof v === "object" && !Array.isArray(v)
+    ? (v as Record<string, unknown>)
+    : {};
 }
 
 export async function startJourney3(formData: FormData) {
   const input = schema.parse({
-    teamCode: String(formData.get("teamCode") ?? ""),
+    ticketType: String(formData.get("ticketType") ?? ""),
     fullName: String(formData.get("fullName") ?? ""),
     cpf: String(formData.get("cpf") ?? ""),
     email: String(formData.get("email") ?? ""),
     phone: String(formData.get("phone") ?? ""),
-    firstPaymentAmount: String(formData.get("firstPaymentAmount") ?? ""),
-    monthlyAmount: String(formData.get("monthlyAmount") ?? ""),
+    installments: formData.get("installments"),
   });
 
-  const eventId = mustEnv("POWERCAMP_EVENT_ID");
-  const ownerUserId = mustEnv("POWERCAMP_OWNER_USER_ID");
-  const pixKey = mustEnv("EFI_PIX_KEY");
+  const eventId = assertEnv("POWERCAMP_EVENT_ID");
+  const ownerUserId = assertEnv("POWERCAMP_OWNER_USER_ID");
+
+  // ✅ time antecipada travado no servidor
+  const antecipadaTeamCode = (process.env.POWERCAMP_ANTECIPADA_TEAM_CODE ??
+    "AGUIA") as "AGUIA" | "LEAO";
+
+  const antecipadaTotal = process.env.POWERCAMP_ANTECIPADA_TOTAL ?? "250.00";
+  const loteZeroTotal = process.env.POWERCAMP_LOTE_ZERO_TOTAL ?? "0.00";
+  const ticketTotal =
+    input.ticketType === "ANTECIPADA" ? antecipadaTotal : loteZeroTotal;
 
   const cpf = cleanCpf(input.cpf);
-  if (cpf.length !== 11) throw new Error("CPF inválido.");
-
-  const team = await prisma.team.findUnique({
-    where: { code: input.teamCode as TeamCode },
-    select: { id: true },
+  const plan = computeEqualInstallmentsPlan({
+    total: ticketTotal,
+    installments: input.installments,
   });
-  if (!team) throw new Error("Equipe inválida.");
 
-  // 1) PARTICIPANT (unique: @@unique([eventId, cpf]))
+  // Participant idempotente por eventId+cpf
   const participant = await prisma.participant.upsert({
     where: { eventId_cpf: { eventId, cpf } },
     update: {
       fullName: input.fullName,
-      email: input.email ? input.email : null,
-      phone: input.phone ? input.phone : null,
+      ...(input.email ? { email: input.email } : {}),
+      ...(input.phone ? { phone: input.phone } : {}),
     },
     create: {
       eventId,
       userId: ownerUserId,
       fullName: input.fullName,
       cpf,
-      email: input.email ? input.email : null,
-      phone: input.phone ? input.phone : null,
+      ...(input.email ? { email: input.email } : {}),
+      ...(input.phone ? { phone: input.phone } : {}),
     },
     select: { id: true },
   });
 
-  // 2) ENROLLMENT (unique: @@unique([eventId, participantId]))
-  const enrollment = await prisma.enrollment.upsert({
-    where: {
-      eventId_participantId: { eventId, participantId: participant.id },
-    },
-    update: { teamId: team.id },
-    create: {
-      eventId,
-      participantId: participant.id,
-      teamId: team.id,
-      status: "PENDING",
-      reservedAt: new Date(),
-    },
-    select: { id: true, eventId: true, participantId: true },
+  // janela da recorrência (cobrar exatamente n-1)
+  const firstRecDate = addMonthsUTC(new Date(), 1);
+  const dataInicial = toYYYYMMDDUTC(firstRecDate);
+  const remaining = plan.recurringCount;
+  const dataFinal =
+    remaining > 1
+      ? toYYYYMMDDUTC(addMonthsUTC(firstRecDate, remaining - 1))
+      : undefined;
+
+  const out = await createEnrollmentAndStartJourney3UseCase({
+    eventId,
+    participantId: participant.id,
+    // ✅ antecipada tem equipe fixa; lote zero sem equipe
+    teamCode: input.ticketType === "ANTECIPADA" ? antecipadaTeamCode : null,
+
+    immediateAmount: plan.firstPaymentAmount,
+    recurringAmount: plan.isSinglePayment
+      ? plan.firstPaymentAmount
+      : plan.recurringAmount,
+
+    contrato: `ENROLLMENT:${eventId}:${participant.id}`,
+    objeto:
+      input.ticketType === "ANTECIPADA"
+        ? "PowerCamp 2027 - Antecipada"
+        : "PowerCamp 2027 - Lote Zero",
+    periodicidade: "MENSAL",
+    dataInicial,
+    dataFinal,
+
+    solicitacaoPagador:
+      input.ticketType === "ANTECIPADA"
+        ? `PowerCamp 2027 - Antecipada (${plan.installments}x)`
+        : `PowerCamp 2027 - Lote Zero (${plan.installments}x)`,
   });
 
-  // 3) Idempotência: se já existe tentativa de pagamento inicial, não recria nada.
-  const existingAttempt = await prisma.initialPaymentAttempt.findUnique({
-    where: { enrollmentId: enrollment.id },
-    select: { id: true },
+  const attempt = await prisma.initialPaymentAttempt.findFirst({
+    where: { enrollmentId: out.enrollmentId },
+    select: { id: true, payload: true },
+    orderBy: { createdAt: "desc" },
   });
 
-  if (existingAttempt?.id) {
-    redirect(`/enroll/success?enrollmentId=${enrollment.id}`);
+  if (attempt) {
+    const prev = jsonObject(attempt.payload) as AttemptPayload;
+
+    await prisma.initialPaymentAttempt.update({
+      where: { id: attempt.id },
+      data: {
+        payload: {
+          ...prev,
+          ticketType: input.ticketType,
+          teamCode:
+            input.ticketType === "ANTECIPADA" ? antecipadaTeamCode : null,
+          plan,
+        } satisfies AttemptPayload,
+      },
+    });
   }
 
-  // 4) Cria locrec (QR da recorrência)
-  const locrec = await pixAutoClient.locrec.create();
-
-  // 5) Cria COB imediata (pagamento inicial)
-  const cob = await pixAutoClient.cob.create({
-    calendario: { expiracao: 3600 },
-    devedor: { cpf, nome: input.fullName },
-    valor: { original: input.firstPaymentAmount },
-    chave: pixKey,
-    solicitacaoPagador:
-      "PowerCamp 2027 - Pagamento inicial + adesão recorrência",
-  });
-
-  console.log("[J3] COB criada", { txid: cob.txid, status: cob.status });
-
-  // Aguarda ficar ATIVA (GET /v2/cob/:txid) — isso NÃO significa “paga”,
-  // significa apenas “criada e pronta pra pagamento”.
-  await waitForCobActive(cob.txid);
-
-  // 6) Persistir tentativa ANTES da Rec (idempotência contra refresh)
-  const idempotencyKeyPayment = randomIdempotencyKey(`pay_${enrollment.id}`);
-
-  await prisma.initialPaymentAttempt.create({
-    data: {
-      enrollmentId: enrollment.id,
-      txid: cob.txid,
-      status: "CREATED",
-      createdAtEfi: new Date(),
-      paidAt: null,
-      amount: input.firstPaymentAmount,
-      payload: {
-        locrec,
-        cob, // inclui pixCopiaECola, location etc (ótimo pra UI)
-      },
-      idempotencyKey: idempotencyKeyPayment,
-    },
-  });
-
-  // 7) Criar Recorrência (Jornada 3)
-  const dataInicial = toYYYYMMDDUTC(addDaysUTC(2));
-  const dataFinal = toYYYYMMDDUTC(addDaysUTC(365));
-  const idempotencyKeyRec = randomIdempotencyKey(`rec_${participant.id}`);
-
-  const rec = await pixAutoClient.rec.create({
-    vinculo: {
-      contrato: enrollment.id,
-      devedor: { cpf, nome: input.fullName },
-      objeto: "PowerCamp 2027 - Mensalidade",
-    },
-    calendario: {
-      dataInicial,
-      dataFinal,
-      periodicidade: "MENSAL",
-    },
-    valor: { valorRec: input.monthlyAmount },
-    politicaRetentativa: "NAO_PERMITE",
-    loc: locrec.id,
-    ativacao: { dadosJornada: { txid: cob.txid } },
-  });
-
-  // 8) Buscar detalhes/QR da Recorrência (pode vir vazio no primeiro instante)
-  const recGet = await pixAutoClient.rec.get(rec.idRec, { txid: cob.txid });
-
-  const pixCopiaEColaRec = recGet.dadosQR?.pixCopiaECola ?? null;
-  const jornadaRec = recGet.dadosQR?.jornada ?? null;
-
-  await prisma.$transaction(async (tx) => {
-    await tx.pixAutoRecurrence.create({
-      data: {
-        eventId,
-        participantId: participant.id,
-
-        idRec: rec.idRec,
-        status: recGet.status ?? rec.status,
-
-        valorRec: input.monthlyAmount,
-        periodicidade: "MENSAL",
-        dataInicial: new Date(`${dataInicial}T00:00:00.000Z`),
-        dataFinal: new Date(`${dataFinal}T00:00:00.000Z`),
-
-        contrato: enrollment.id,
-        objeto: "PowerCamp 2027 - Mensalidade",
-
-        locId: locrec.id,
-        locationUrl: String(locrec.location),
-        pixCopiaECola: pixCopiaEColaRec,
-        jornada: jornadaRec,
-
-        idempotencyKey: idempotencyKeyRec,
-      },
-    });
-
-    // Mantém payload rico pra debug/observabilidade
-    await tx.initialPaymentAttempt.update({
-      where: { enrollmentId: enrollment.id },
-      data: {
-        payload: { locrec, cob, rec, recGet },
-      },
-    });
-  });
-
-  redirect(`/enroll/success?enrollmentId=${enrollment.id}`);
+  redirect(
+    `/enroll/success?enrollmentId=${encodeURIComponent(out.enrollmentId)}`,
+  );
 }
