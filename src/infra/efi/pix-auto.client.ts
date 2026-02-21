@@ -16,73 +16,78 @@ export type Journey3CobImmediateParams = Readonly<{
   txid: string;
   valor: string;
   solicitacaoPagador?: string;
-  loc: number; // obrigatório na Jornada 3
+  loc: number; // usado opcionalmente via feature flag
 }>;
 
 function normalizeMoney(value: string): string {
-  // aceita "10", "10.5", "10,50", "0010,50" -> "10.50"
   const raw = value.trim().replace(",", ".");
   const n = Number(raw);
   if (!Number.isFinite(n) || n <= 0) throw new Error("Valor inválido.");
   return n.toFixed(2);
 }
 
-type CobPutBody = Readonly<{
+function assertEnv(name: string): string {
+  const v = process.env[name] ?? "";
+  if (!v) throw new Error(`${name} não definida no .env`);
+  return v;
+}
+
+type CobPutBodyBase = Readonly<{
   calendario: { expiracao: number };
   valor: { original: string };
   chave: string;
   solicitacaoPagador?: string;
-  // loc?: number  // ⚠️ só inclua se o erro real NÃO reclamar
 }>;
+
+type CobPutBodyWithLoc = CobPutBodyBase & Readonly<{ loc: number }>;
 
 export const pixAutoClient = {
   locrec: {
     async create(body: CreateLocRecRequest = {}): Promise<LocRecResponse> {
       const http = getEfiHttpClient();
-      const res = await http.post("/v2/locrec", body);
+      const res = await http.post<LocRecResponse>("/v2/locrec", body);
       return res.data;
     },
     async get(locId: number): Promise<LocRecResponse> {
       const http = getEfiHttpClient();
-      const res = await http.get(`/v2/locrec/${locId}`);
+      const res = await http.get<LocRecResponse>(`/v2/locrec/${locId}`);
       return res.data;
     },
   },
 
-  // ✅ Helpers específicos pro seu fluxo
   journey3: {
+    /**
+     * ✅ Cria COB via PUT /v2/cob/:txid (idempotência real no provedor).
+     * ⚠️ `loc` pode gerar 400 dependendo do endpoint/contrato. Use feature flag para testar.
+     */
     async createCobImmediate(
       params: Journey3CobImmediateParams,
     ): Promise<CobResponse> {
-      const pixKey = process.env.EFI_PIX_KEY ?? "";
-      if (!pixKey) throw new Error("EFI_PIX_KEY não definida no .env");
+      const pixKey = assertEnv("EFI_PIX_KEY");
 
-      const body: CobPutBody = {
+      const baseBody: CobPutBodyBase = {
         calendario: { expiracao: 3600 },
         valor: { original: normalizeMoney(params.valor) },
         chave: pixKey,
         ...(params.solicitacaoPagador
           ? { solicitacaoPagador: params.solicitacaoPagador }
           : {}),
-        // ⚠️ COMEÇE SEM loc. Se o erro real não reclamar, você adiciona depois.
       };
 
-      // se você quer testar loc, habilite com feature flag:
       const enableLoc = process.env.EFI_ENABLE_J3_LOC === "true";
       if (enableLoc) {
-        // aqui não dá pra manter CobPutBody readonly sem ajustar, então faça assim:
-        const withLoc = { ...body, loc: params.loc };
+        const withLoc: CobPutBodyWithLoc = { ...baseBody, loc: params.loc };
         return pixAutoClient.cob.put(params.txid, withLoc);
       }
 
-      return pixAutoClient.cob.put(params.txid, body);
+      return pixAutoClient.cob.put(params.txid, baseBody);
     },
   },
 
   cob: {
     async create(body: CreateCobRequest): Promise<CobResponse> {
       const http = getEfiHttpClient();
-      const res = await http.post("/v2/cob", body);
+      const res = await http.post<CobResponse>("/v2/cob", body);
       return res.data;
     },
     async put(txid: string, body: CreateCobRequest): Promise<CobResponse> {
@@ -95,12 +100,17 @@ export const pixAutoClient = {
     },
     async get(txid: string): Promise<CobResponse> {
       const http = getEfiHttpClient();
-      const res = await http.get(`/v2/cob/${encodeURIComponent(txid)}`);
+      const res = await http.get<CobResponse>(
+        `/v2/cob/${encodeURIComponent(txid)}`,
+      );
       return res.data;
     },
     async patch(txid: string, body: { status: string }): Promise<CobResponse> {
       const http = getEfiHttpClient();
-      const res = await http.patch(`/v2/cob/${encodeURIComponent(txid)}`, body);
+      const res = await http.patch<CobResponse>(
+        `/v2/cob/${encodeURIComponent(txid)}`,
+        body,
+      );
       return res.data;
     },
   },
@@ -108,15 +118,17 @@ export const pixAutoClient = {
   rec: {
     async create(body: CreateRecRequest): Promise<RecResponse> {
       const http = getEfiHttpClient();
-      const res = await http.post("/v2/rec", body);
+      const res = await http.post<RecResponse>("/v2/rec", body);
       return res.data;
     },
-    // ✅ já está certo: aceita opts (txid) como 2º argumento
     async get(idRec: string, opts?: { txid?: string }): Promise<RecResponse> {
       const http = getEfiHttpClient();
-      const res = await http.get(`/v2/rec/${encodeURIComponent(idRec)}`, {
-        params: opts?.txid ? { txid: opts.txid } : undefined,
-      });
+      const res = await http.get<RecResponse>(
+        `/v2/rec/${encodeURIComponent(idRec)}`,
+        {
+          params: opts?.txid ? { txid: opts.txid } : undefined,
+        },
+      );
       return res.data;
     },
     async patch(
@@ -124,7 +136,7 @@ export const pixAutoClient = {
       body: Partial<CreateRecRequest>,
     ): Promise<RecResponse> {
       const http = getEfiHttpClient();
-      const res = await http.patch(
+      const res = await http.patch<RecResponse>(
         `/v2/rec/${encodeURIComponent(idRec)}`,
         body,
       );
@@ -141,19 +153,19 @@ export const pixAutoClient = {
     }) {
       const http = getEfiHttpClient();
       const res = await http.get("/v2/rec", { params });
-      return res.data;
+      return res.data as unknown;
     },
   },
 
   solicrec: {
     async create(body: CreateSolicRecRequest): Promise<SolicRecResponse> {
       const http = getEfiHttpClient();
-      const res = await http.post("/v2/solicrec", body);
+      const res = await http.post<SolicRecResponse>("/v2/solicrec", body);
       return res.data;
     },
     async get(idSolicRec: string): Promise<SolicRecResponse> {
       const http = getEfiHttpClient();
-      const res = await http.get(
+      const res = await http.get<SolicRecResponse>(
         `/v2/solicrec/${encodeURIComponent(idSolicRec)}`,
       );
       return res.data;
@@ -163,7 +175,7 @@ export const pixAutoClient = {
       body: { status: string },
     ): Promise<SolicRecResponse> {
       const http = getEfiHttpClient();
-      const res = await http.patch(
+      const res = await http.patch<SolicRecResponse>(
         `/v2/solicrec/${encodeURIComponent(idSolicRec)}`,
         body,
       );
@@ -174,22 +186,27 @@ export const pixAutoClient = {
   cobr: {
     async create(body: CreateCobrRequest): Promise<CobrResponse> {
       const http = getEfiHttpClient();
-      const res = await http.post("/v2/cobr", body);
+      const res = await http.post<CobrResponse>("/v2/cobr", body);
       return res.data;
     },
     async put(txid: string, body: CreateCobrRequest): Promise<CobrResponse> {
       const http = getEfiHttpClient();
-      const res = await http.put(`/v2/cobr/${encodeURIComponent(txid)}`, body);
+      const res = await http.put<CobrResponse>(
+        `/v2/cobr/${encodeURIComponent(txid)}`,
+        body,
+      );
       return res.data;
     },
     async get(txid: string): Promise<CobrResponse> {
       const http = getEfiHttpClient();
-      const res = await http.get(`/v2/cobr/${encodeURIComponent(txid)}`);
+      const res = await http.get<CobrResponse>(
+        `/v2/cobr/${encodeURIComponent(txid)}`,
+      );
       return res.data;
     },
     async patch(txid: string, body: { status: string }): Promise<CobrResponse> {
       const http = getEfiHttpClient();
-      const res = await http.patch(
+      const res = await http.patch<CobrResponse>(
         `/v2/cobr/${encodeURIComponent(txid)}`,
         body,
       );
@@ -208,14 +225,14 @@ export const pixAutoClient = {
     }) {
       const http = getEfiHttpClient();
       const res = await http.get("/v2/cobr", { params });
-      return res.data;
+      return res.data as unknown;
     },
     async requestRetentativa(txid: string, data: string) {
       const http = getEfiHttpClient();
       const res = await http.post(
         `/v2/cobr/${encodeURIComponent(txid)}/retentativa/${encodeURIComponent(data)}`,
       );
-      return res.data;
+      return res.data as unknown;
     },
   },
 };
