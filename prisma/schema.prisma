@@ -7,6 +7,26 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum TeamCode {
+  AGUIA
+  LEAO
+}
+
+enum EnrollmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  CREATED
+  ACTIVE
+  PAID
+  CANCELLED
+  FAILED
+  EXPIRED
+}
+
 model Account {
   id                String  @id @default(cuid())
   userId            String
@@ -75,6 +95,9 @@ model Event {
   recurrences  PixAutoRecurrence[]
   pixAutoLocRecs PixAutoLocRec[]
   pixCobImmediates PixCobImmediate[]
+  enrollments Enrollment[]
+  teamMilestones TeamMilestone[]
+  teamAwards TeamAward[]
 }
 
 model Participant {
@@ -94,6 +117,7 @@ model Participant {
   recurrences PixAutoRecurrence[]
   pixAutoLocRecs PixAutoLocRec[]
   pixCobImmediates PixCobImmediate[]
+  enrollments Enrollment[]
 
   @@unique([eventId, cpf])
   @@index([eventId])
@@ -253,4 +277,105 @@ model PixCobImmediate {
   @@index([eventId])
   @@index([participantId])
   @@index([status])
+}
+
+model Team {
+  id        String   @id @default(cuid())
+  code      TeamCode @unique
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  enrollments Enrollment[]
+  teamMilestones TeamMilestone[]
+  teamAwards TeamAward[]
+}
+
+model Enrollment {
+  id            String           @id @default(cuid())
+  eventId       String
+  participantId String
+  teamId        String
+
+  status        EnrollmentStatus @default(PENDING)
+  reservedAt    DateTime         @default(now())
+  confirmedAt   DateTime?
+
+  // 1 inscrição por participante por evento
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event       Event       @relation(fields: [eventId], references: [id])
+  participant Participant @relation(fields: [participantId], references: [id])
+  team        Team        @relation(fields: [teamId], references: [id])
+
+  initialPayment InitialPaymentAttempt?
+
+  @@unique([eventId, participantId])
+  @@index([eventId, teamId, status])
+  @@index([teamId, status])
+}
+
+model InitialPaymentAttempt {
+  id            String        @id @default(cuid())
+  enrollmentId  String        @unique
+
+  // Efí cobrança imediata (Jornada 3)
+  txid          String?       @unique
+  status        PaymentStatus @default(CREATED)
+  createdAtEfi  DateTime?
+  paidAt        DateTime?
+
+  amount        String
+  payload       Json?
+
+  idempotencyKey String       @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  enrollment Enrollment @relation(fields: [enrollmentId], references: [id])
+
+  @@index([status, paidAt])
+}
+
+model TeamMilestone {
+  id        String   @id @default(cuid())
+  eventId   String
+  teamId    String
+  milestone Int      // ex.: 50
+
+  achievedAt DateTime
+  enrollmentId String
+  txid        String
+
+  createdAt DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id])
+  team  Team  @relation(fields: [teamId], references: [id])
+
+  @@unique([eventId, teamId, milestone])
+  @@index([eventId, milestone, achievedAt])
+}
+
+model TeamAward {
+  id        String   @id @default(cuid())
+  eventId   String
+  awardKey  String   // ex.: "FIRST_50_PAID"
+  winnerTeamId String
+
+  pointsGranted Int
+  decidedAt DateTime
+
+  // auditoria
+  decidedByRule String
+  tieBreakNote  String?
+
+  createdAt DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id])
+  winnerTeam Team @relation(fields: [winnerTeamId], references: [id])
+
+  @@unique([eventId, awardKey])
+  @@index([eventId, decidedAt])
 }
