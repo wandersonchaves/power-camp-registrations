@@ -2,6 +2,11 @@ import { Progress50 } from "../_components/Progress50";
 import { StatCard } from "../_components/StatCard";
 import { getRaceScoreboard } from "../_data/admin.queries";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
+
 function fmtDate(d: Date) {
   return new Intl.DateTimeFormat("pt-BR", {
     dateStyle: "short",
