@@ -1,3 +1,4 @@
+// src/app/api/auth/[...nextauth]/auth-options.ts
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import type { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
@@ -7,54 +8,50 @@ import { prisma } from "@/lib/prisma";
 
 type AppRole = "ADMIN" | "USER";
 
-type UserWithRole = {
-  id: string;
-  role: AppRole;
-  isActive: boolean;
+type TokenWithAppFields = {
+  sub?: string;
+  role?: AppRole;
+  isActive?: boolean;
 };
-
-function isUserWithRole(u: unknown): u is UserWithRole {
-  return (
-    !!u &&
-    typeof u === "object" &&
-    "role" in u &&
-    "isActive" in u &&
-    typeof (u as { role?: unknown }).role === "string" &&
-    typeof (u as { isActive?: unknown }).isActive === "boolean"
-  );
-}
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
+
+  // ✅ Você usa middleware com getToken() + callbacks jwt => precisa ser JWT
+  session: { strategy: "jwt" },
+
+  // ✅ Evita "sub undefined" por secret ausente/instável (local/railway)
+  secret: env.NEXTAUTH_SECRET,
+
   providers: [
     GoogleProvider({
       clientId: env.GOOGLE_CLIENT_ID,
       clientSecret: env.GOOGLE_CLIENT_SECRET,
     }),
   ],
-  session: { strategy: "database" }, // ok com adapter
+
   callbacks: {
     async jwt({ token, user }) {
-      if (isUserWithRole(user)) {
-        token.role = user.role;
-        token.isActive = user.isActive;
+      // No primeiro login, user existe (adapter)
+      if (user) {
+        const u = user as unknown as { role?: AppRole; isActive?: boolean };
+        (token as TokenWithAppFields).role = u.role ?? "USER";
+        (token as TokenWithAppFields).isActive = Boolean(u.isActive);
       }
       return token;
     },
 
-    async session({ session, user }) {
+    async session({ session, token }) {
+      // Em JWT strategy, token contém o "sub" (userId)
+      const t = token as TokenWithAppFields;
+
       if (!session.user) return session;
 
-      session.user.id = user.id;
-      session.user.isActive = user.isActive;
-      session.user.role = user.role;
+      session.user.id = t.sub ?? session.user.id;
+      session.user.role = t.role ?? "USER";
+      session.user.isActive = Boolean(t.isActive);
 
       return session;
-    },
-  },
-  events: {
-    createUser: async ({ user }) => {
-      if (!user.email || !user.name) return;
     },
   },
 };
