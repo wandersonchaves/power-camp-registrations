@@ -35,7 +35,7 @@ type AttemptPayload = {
 };
 
 function assertEnv(name: string): string {
-  const v = process.env[name] ?? "";
+  const v = String(process.env[name] ?? "").trim();
   if (!v) throw new Error(`${name} não definido.`);
   return v;
 }
@@ -44,8 +44,16 @@ function cleanCpf(cpf: string) {
   return cpf.replace(/\D/g, "");
 }
 
+function normalizeMoney(value: string): string {
+  const raw = String(value).trim().replace(",", ".");
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) throw new Error("Valor inválido.");
+  return n.toFixed(2);
+}
+
 function moneyToCents(v: string): number {
-  const [i, d = "00"] = String(v).split(".");
+  const raw = normalizeMoney(v);
+  const [i, d = "00"] = raw.split(".");
   return Number(i) * 100 + Number(String(d).padEnd(2, "0").slice(0, 2));
 }
 
@@ -67,7 +75,7 @@ function computeEqualInstallmentsPlan(params: {
   const effectiveTotalC = installmentC * n;
 
   return {
-    ticketTotalTarget: params.total,
+    ticketTotalTarget: normalizeMoney(params.total),
     ticketTotalEffective: centsToMoney(effectiveTotalC),
     installments: n,
     installmentAmount: centsToMoney(installmentC),
@@ -113,22 +121,26 @@ export async function startJourney3(formData: FormData) {
   const eventId = assertEnv("POWERCAMP_EVENT_ID");
   const ownerUserId = assertEnv("POWERCAMP_OWNER_USER_ID");
 
-  // ✅ time antecipada travado no servidor
   const antecipadaTeamCode = (process.env.POWERCAMP_ANTECIPADA_TEAM_CODE ??
     "AGUIA") as "AGUIA" | "LEAO";
 
   const antecipadaTotal = process.env.POWERCAMP_ANTECIPADA_TOTAL ?? "250.00";
   const loteZeroTotal = process.env.POWERCAMP_LOTE_ZERO_TOTAL ?? "0.00";
+
   const ticketTotal =
     input.ticketType === "ANTECIPADA" ? antecipadaTotal : loteZeroTotal;
 
   const cpf = cleanCpf(input.cpf);
+  if (cpf.length !== 11) {
+    throw new Error("CPF inválido. Informe um CPF com 11 dígitos.");
+  }
+
   const plan = computeEqualInstallmentsPlan({
     total: ticketTotal,
     installments: input.installments,
   });
 
-  // Participant idempotente por eventId+cpf
+  // Participant idempotente por (eventId, cpf)
   const participant = await prisma.participant.upsert({
     where: { eventId_cpf: { eventId, cpf } },
     update: {
@@ -147,10 +159,11 @@ export async function startJourney3(formData: FormData) {
     select: { id: true },
   });
 
-  // janela da recorrência (cobrar exatamente n-1)
+  // janela da recorrência (n-1 cobranças a partir do próximo mês)
   const firstRecDate = addMonthsUTC(new Date(), 1);
   const dataInicial = toYYYYMMDDUTC(firstRecDate);
   const remaining = plan.recurringCount;
+
   const dataFinal =
     remaining > 1
       ? toYYYYMMDDUTC(addMonthsUTC(firstRecDate, remaining - 1))
@@ -159,7 +172,6 @@ export async function startJourney3(formData: FormData) {
   const out = await createEnrollmentAndStartJourney3UseCase({
     eventId,
     participantId: participant.id,
-    // ✅ antecipada tem equipe fixa; lote zero sem equipe
     teamCode: input.ticketType === "ANTECIPADA" ? antecipadaTeamCode : null,
 
     immediateAmount: plan.firstPaymentAmount,
@@ -182,6 +194,7 @@ export async function startJourney3(formData: FormData) {
         : `PowerCamp 2027 - Lote Zero (${plan.installments}x)`,
   });
 
+  // Enriquecer attempt.payload com dados do plano/ticket (mantendo o que já existe)
   const attempt = await prisma.initialPaymentAttempt.findFirst({
     where: { enrollmentId: out.enrollmentId },
     select: { id: true, payload: true },

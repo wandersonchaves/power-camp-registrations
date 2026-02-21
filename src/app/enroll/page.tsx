@@ -5,11 +5,11 @@ export const runtime = "nodejs";
 
 export default function EnrollPage() {
   return (
-    <main className="min-h-screen bg-gray-50 text-gray-900">
+    <main className="bg-background text-foreground min-h-screen">
       <div className="mx-auto max-w-xl px-4 py-10">
-        <div className="rounded-3xl border bg-white p-6 shadow-sm">
+        <div className="bg-card rounded-3xl border p-6 shadow-sm">
           <h1 className="text-2xl font-semibold">Inscrição — PowerCamp 2027</h1>
-          <p className="mt-1 text-sm text-gray-600">
+          <p className="text-muted-foreground mt-1 text-sm">
             Escolha o tipo e o número de parcelas. Os valores são calculados
             automaticamente.
           </p>
@@ -25,7 +25,7 @@ export default function EnrollPage() {
               <input
                 name="fullName"
                 required
-                className="mt-1 w-full rounded-2xl border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900"
+                className="bg-background focus:ring-ring mt-1 w-full rounded-2xl border px-3 py-2 text-sm outline-none focus:ring-2"
                 placeholder="Ex: Wanderson Chaves"
               />
             </div>
@@ -37,7 +37,7 @@ export default function EnrollPage() {
               <input
                 name="cpf"
                 required
-                className="mt-1 w-full rounded-2xl border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900"
+                className="bg-background focus:ring-ring mt-1 w-full rounded-2xl border px-3 py-2 text-sm outline-none focus:ring-2"
                 placeholder="000.000.000-00"
               />
             </div>
@@ -50,7 +50,7 @@ export default function EnrollPage() {
                 <input
                   name="email"
                   type="email"
-                  className="mt-1 w-full rounded-2xl border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900"
+                  className="bg-background focus:ring-ring mt-1 w-full rounded-2xl border px-3 py-2 text-sm outline-none focus:ring-2"
                   placeholder="voce@email.com"
                 />
               </div>
@@ -61,7 +61,7 @@ export default function EnrollPage() {
                 </label>
                 <input
                   name="phone"
-                  className="mt-1 w-full rounded-2xl border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900"
+                  className="bg-background focus:ring-ring mt-1 w-full rounded-2xl border px-3 py-2 text-sm outline-none focus:ring-2"
                   placeholder="(99) 99999-9999"
                 />
               </div>
@@ -74,7 +74,7 @@ export default function EnrollPage() {
               <select
                 name="installments"
                 defaultValue="12"
-                className="mt-1 w-full rounded-2xl border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900"
+                className="bg-background focus:ring-ring mt-1 w-full rounded-2xl border px-3 py-2 text-sm outline-none focus:ring-2"
               >
                 {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => (
                   <option key={n} value={n}>
@@ -82,19 +82,19 @@ export default function EnrollPage() {
                   </option>
                 ))}
               </select>
-              <p className="mt-1 text-xs text-gray-600">
+              <p className="text-muted-foreground mt-1 text-xs">
                 A 1ª parcela terá o mesmo valor das demais.
               </p>
             </div>
 
             <button
               type="submit"
-              className="w-full rounded-2xl bg-gray-900 px-4 py-3 text-sm font-medium text-white hover:bg-gray-800"
+              className="bg-primary text-primary-foreground w-full rounded-2xl px-4 py-3 text-sm font-medium hover:opacity-90"
             >
               Gerar Pix (1ª parcela)
             </button>
 
-            <p className="text-xs text-gray-600">
+            <p className="text-muted-foreground text-xs">
               Após pagar a 1ª parcela, sua inscrição será confirmada
               automaticamente.
             </p>
