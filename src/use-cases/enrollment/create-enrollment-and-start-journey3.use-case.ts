@@ -16,17 +16,16 @@ type Input = {
   eventId: string;
   participantId: string;
 
-  // opcional para LOTE_ZERO
   teamCode?: TeamCode | null;
 
-  immediateAmount: string; // "20.83"
-  recurringAmount: string; // "20.83"
+  immediateAmount: string;
+  recurringAmount: string;
 
   contrato: string;
   objeto?: string | null;
 
   periodicidade: "MENSAL" | "SEMANAL" | "TRIMESTRAL" | "SEMESTRAL" | "ANUAL";
-  dataInicial: string; // "YYYY-MM-DD"
+  dataInicial: string; // YYYY-MM-DD
   dataFinal?: string;
 
   solicitacaoPagador?: string;
@@ -41,9 +40,16 @@ type Output = {
 };
 
 function assertEnv(name: string): string {
-  const v = process.env[name] ?? "";
+  const v = String(process.env[name] ?? "").trim();
   if (!v) throw new Error(`${name} não definido.`);
   return v;
+}
+
+function normalizeMoney(value: string): string {
+  const raw = String(value).trim().replace(",", ".");
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) throw new Error("Valor inválido.");
+  return n.toFixed(2);
 }
 
 function isJsonObject(
@@ -52,38 +58,94 @@ function isJsonObject(
   return !!v && typeof v === "object" && !Array.isArray(v);
 }
 
-function mapCobStatus(status: string) {
+function mapCobStatus(status: string | null | undefined) {
+  if (!status) return "CREATED";
   const s = status.toUpperCase();
-
-  if (
-    s.includes("CONCLUID") ||
-    s.includes("LIQ") ||
-    s.includes("PAGA") ||
-    s.includes("PAID")
-  )
+  if (s.includes("CONCLUID") || s.includes("LIQ") || s.includes("PAGA"))
     return "PAID";
   if (s.includes("CANCEL")) return "CANCELLED";
   if (s.includes("EXPIR")) return "EXPIRED";
-  if (s.includes("ATIV")) return "ACTIVE"; // ATIVA
+  if (s.includes("ATIV")) return "ACTIVE";
   return "CREATED";
 }
 
 /**
- * ✅ Jornada 3 (EFI) com idempotência e alta performance
+ * Para evitar colisão e permitir retry por expiração, usamos:
+ * txidBase (determinístico) + sufixo curto de revisão.
+ * Mantém <= 35 chars.
+ */
+function buildTxidWithRevision(baseTxid: string, rev: number) {
+  const r = Math.max(0, rev);
+  const rev2 = String(r % 100).padStart(2, "0");
+  const h6 = sha256(`${baseTxid}:${r}`).slice(0, 6);
+  const suffix = `${h6}${rev2}`; // 8
+  const headLen = Math.max(1, 35 - suffix.length);
+  return `${baseTxid.slice(0, headLen)}${suffix}`;
+}
+
+type AttemptTicketPayload = {
+  txidRevision?: number;
+};
+
+function getTxidRevision(payload: Prisma.JsonValue | null | undefined): number {
+  if (!payload || !isJsonObject(payload)) return 0;
+  const ticket = payload["ticket"];
+  if (!ticket || typeof ticket !== "object" || Array.isArray(ticket)) return 0;
+
+  const rev = (ticket as Record<string, unknown>)["txidRevision"];
+  const n = Number(rev);
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+}
+
+function makeContratoEfi(params: {
+  inputContrato: string | null | undefined;
+  enrollmentId: string;
+  participantId: string;
+  eventId: string;
+}): string {
+  const raw = String(params.inputContrato ?? "").trim();
+  const digits = raw.replace(/\D/g, "");
+
+  // ✅ se usuário informou exatamente 8 dígitos, usa (padrão do exemplo Efí)
+  if (/^\d{8}$/.test(digits)) return digits;
+
+  const seed = `${params.eventId}|${params.participantId}|${params.enrollmentId}`;
+  const h = sha256(seed); // hex
+
+  // hex tem letras; extraímos dígitos se houver
+  const onlyDigits = h.replace(/\D/g, "");
+
+  // fallback sem spread (compatível com target antigo)
+  let sum = 0;
+  for (let i = 0; i < seed.length; i++) sum += seed.charCodeAt(i);
+
+  const safeDigits =
+    onlyDigits.length >= 12 ? onlyDigits : String(sum).repeat(5);
+
+  // 8 dígitos finais (sempre retorna algo)
+  return safeDigits.slice(-8).padStart(8, "7");
+}
+
+/**
+ * ✅ Jornada 3 (EFI):
+ * 1) POST /v2/locrec
+ * 2) PUT /v2/cob/:txid  (ou POST /v2/cob)
+ * 3) POST /v2/rec  (loc = cob.loc.id) + ativacao.dadosJornada.txid
+ * 4) GET /v2/rec/:idRec?txid=...
  *
- * Regras:
- * - 1 Enrollment por (eventId, participantId)
- * - 1 Attempt por enrollment (enrollmentId é @unique)
- * - Se já existe attempt, NÃO chama PUT novamente (evita 400). Faz GET e retorna.
- * - Só cria REC depois que a COB estiver ATIVA (waitForCobActive).
- * - teamCode é opcional (LOTE_ZERO). O enrollment pode ficar com teamId = null.
+ * Robustez:
+ * - se /v2/rec disser que txid expirou -> rev++ -> novo txid -> recria COB -> tenta rec novamente (1 retry)
+ * - se contrato já tem recorrência ativa -> 409 (idempotência por contrato)
  */
 export async function createEnrollmentAndStartJourney3UseCase(
   input: Input,
 ): Promise<Output> {
-  const pixKey = assertEnv("EFI_PIX_KEY");
+  assertEnv("EFI_PIX_KEY");
 
-  // 1) validações mínimas (queries enxutas)
+  const immediateAmount = normalizeMoney(input.immediateAmount);
+  const recurringAmount = normalizeMoney(input.recurringAmount);
+
+  // 1) validações mínimas
   const participant = await prisma.participant.findUnique({
     where: { id: input.participantId },
     select: { id: true, cpf: true, fullName: true },
@@ -102,7 +164,7 @@ export async function createEnrollmentAndStartJourney3UseCase(
     teamId = team.id;
   }
 
-  // 2) enrollment idempotente (1 por participante/evento)
+  // 2) enrollment idempotente
   const enrollment = await prisma.enrollment.upsert({
     where: {
       eventId_participantId: {
@@ -110,95 +172,54 @@ export async function createEnrollmentAndStartJourney3UseCase(
         participantId: input.participantId,
       },
     },
-    update: {
-      // permite trocar time enquanto PENDING (se você quiser)
-      ...(teamId ? { teamId } : {}),
-    },
+    update: { ...(teamId ? { teamId } : {}) },
     create: {
       eventId: input.eventId,
       participantId: input.participantId,
-      teamId, // pode ser null no LOTE_ZERO
+      teamId,
       status: "PENDING",
       reservedAt: new Date(),
     },
     select: { id: true, status: true },
   });
 
-  // Se já confirmado, não inicia jornada novamente
-  if (enrollment.status === "CONFIRMED") {
-    return {
-      enrollmentId: enrollment.id,
-      txid: "",
-      cobPixCopiaECola: null,
-      idRec: null,
-      recPixCopiaECola: null,
-    };
-  }
-
-  // 3) idempotency key determinística (se mudar parâmetros do plano, muda a key)
-  const paymentIdempotencyKey = sha256(
-    [
-      enrollment.id,
-      input.immediateAmount,
-      input.recurringAmount,
-      input.periodicidade,
-      input.dataInicial,
-      input.dataFinal ?? "",
-      input.contrato,
-    ].join("|"),
-  );
-
-  // 4) txid determinístico do COB (idempotência real no endpoint PUT)
-  const txid = buildTxid({
-    eventId: input.eventId,
-    kind: "COB_IMMEDIATE",
+  // ✅ contrato Efí: usa o informado se for numérico válido; senão gera determinístico
+  const contrato = makeContratoEfi({
+    inputContrato: input.contrato,
     enrollmentId: enrollment.id,
     participantId: input.participantId,
+    eventId: input.eventId,
   });
 
-  /**
-   * 5) Idempotência forte (DB):
-   * - O seu schema hoje tem enrollmentId como @unique em InitialPaymentAttempt.
-   * - Então, se já existe um attempt para este enrollment, você deve REUTILIZAR a jornada.
-   * - Isso evita P2002 e evita 400 no PUT /v2/cob/:txid.
-   */
-  const existingAttempt = await prisma.initialPaymentAttempt.findUnique({
-    where: { enrollmentId: enrollment.id },
-    select: { id: true, txid: true, idempotencyKey: true, payload: true },
-  });
+  // 3) se confirmado, retorna dados existentes
+  if (enrollment.status === "CONFIRMED") {
+    const attempt = await prisma.initialPaymentAttempt.findUnique({
+      where: { enrollmentId: enrollment.id },
+      select: { txid: true, payload: true },
+    });
 
-  if (existingAttempt?.txid) {
-    // Reaproveita a COB (sem PUT de novo)
-    const cobExisting = await pixAutoClient.cob.get(existingAttempt.txid);
-
-    // Recorrência mais recente (se já criada)
     const rec = await prisma.pixAutoRecurrence.findFirst({
       where: { eventId: input.eventId, participantId: input.participantId },
       orderBy: { createdAt: "desc" },
       select: { idRec: true, pixCopiaECola: true },
     });
 
-    // Tenta pegar copia-e-cola do COB do payload (se existir) — fallback pro GET
     let cobPix: string | null = null;
-    if (isJsonObject(existingAttempt.payload)) {
-      const cobPayload = (existingAttempt.payload as Prisma.JsonObject)["cob"];
+    if (attempt?.payload && isJsonObject(attempt.payload)) {
+      const cobPayload = attempt.payload["cob"];
       if (
         cobPayload &&
         typeof cobPayload === "object" &&
         !Array.isArray(cobPayload)
       ) {
-        const maybePix = (cobPayload as Record<string, unknown>)[
-          "pixCopiaECola"
-        ];
-        if (typeof maybePix === "string") cobPix = maybePix;
-        if (maybePix === null) cobPix = null;
+        const pix = (cobPayload as Record<string, unknown>)["pixCopiaECola"];
+        if (typeof pix === "string") cobPix = pix;
       }
     }
-    cobPix = cobPix ?? cobExisting.pixCopiaECola ?? null;
 
     return {
       enrollmentId: enrollment.id,
-      txid: existingAttempt.txid,
+      txid: attempt?.txid ?? "",
       cobPixCopiaECola: cobPix,
       idRec: rec?.idRec ?? null,
       recPixCopiaECola: rec?.pixCopiaECola ?? null,
@@ -206,107 +227,281 @@ export async function createEnrollmentAndStartJourney3UseCase(
   }
 
   /**
-   * 6) Criar/atualizar attempt de forma segura:
-   * - Como enrollmentId é unique, usamos UPSERT por enrollmentId (evita P2002).
-   * - E já gravamos txid + idempotencyKey atuais.
-   * - payload sempre {} (nunca null).
+   * ✅ 3.1) Idempotência por contrato (regra Efí)
+   * Se já existe recorrência ativa para esse contrato, não tente criar outra.
    */
+  const existingByContrato = await prisma.pixAutoRecurrence.findFirst({
+    where: {
+      contrato,
+      status: { in: ["CRIADA", "APROVADA"] },
+    },
+    orderBy: { createdAt: "desc" },
+    select: {
+      idRec: true,
+      pixCopiaECola: true,
+      status: true,
+      eventId: true,
+      participantId: true,
+    },
+  });
+
+  // 4) idempotency key do plano
+  const paymentIdempotencyKey = sha256(
+    [
+      enrollment.id,
+      immediateAmount,
+      recurringAmount,
+      input.periodicidade,
+      input.dataInicial,
+      input.dataFinal ?? "",
+      contrato,
+    ].join("|"),
+  );
+
+  // txid base determinístico
+  const txidBase = buildTxid({
+    eventId: input.eventId,
+    kind: "COB_IMMEDIATE",
+    enrollmentId: enrollment.id,
+    participantId: input.participantId,
+  });
+
+  /**
+   * 5) Attempt idempotente por enrollmentId
+   *    IMPORTANTE: não zere payload a cada chamada (pra manter txidRevision).
+   */
+  const existingAttempt = await prisma.initialPaymentAttempt.findUnique({
+    where: { enrollmentId: enrollment.id },
+    select: { id: true, txid: true, payload: true },
+  });
+
+  const currentRev = getTxidRevision(existingAttempt?.payload);
+  const initialTxid = existingAttempt?.txid?.length
+    ? existingAttempt.txid
+    : buildTxidWithRevision(txidBase, currentRev);
+
   const attempt = await prisma.initialPaymentAttempt.upsert({
     where: { enrollmentId: enrollment.id },
     update: {
-      // Se existir attempt sem txid (ex: criado antes e crashou), fixamos
-      ...(existingAttempt?.txid ? {} : { txid }),
       idempotencyKey: paymentIdempotencyKey,
-      amount: input.immediateAmount,
-      ...(existingAttempt?.payload ? {} : { payload: {} }),
+      amount: immediateAmount,
+      txid: initialTxid,
     },
     create: {
       enrollmentId: enrollment.id,
       idempotencyKey: paymentIdempotencyKey,
-      txid,
+      txid: initialTxid,
       status: "CREATED",
-      amount: input.immediateAmount,
-      payload: {}, // ✅ nunca null
+      amount: immediateAmount,
+      payload: asInputJson({
+        ticket: { txidRevision: currentRev } satisfies AttemptTicketPayload,
+      }),
     },
-    select: { id: true, txid: true },
+    select: { id: true, txid: true, payload: true },
   });
 
-  const effectiveTxid = attempt.txid ?? txid;
+  let effectiveTxid = attempt.txid;
+  let txidRevision = getTxidRevision(attempt.payload);
 
-  // ==== Jornada 3 Efí ====
-  // 7) locrec (QR da recorrência)
-  const locrec = await pixAutoClient.locrec.create();
+  if (existingByContrato) {
+    // ✅ Reusa a recorrência existente em vez de tentar criar outra (Efí bloqueia)
+    // Se o objetivo aqui for "gerar nova inscrição", você deve decidir:
+    // - reutilizar idRec/pixCopiaECola
+    // - e eventualmente criar NOVA COB imediata (novo txid) se quiser cobrar de novo agora.
 
-  /**
-   * 8) COB via PUT /v2/cob/:txid (idempotência real no provedor)
-   * IMPORTANTÍSSIMO:
-   * - Só chame PUT quando você tem certeza que está criando (ou revisando permitido).
-   * - Aqui nós estamos no caminho "não existia attempt.txid antes", então é ok.
-   * - Se a EFI responder 400, o log do response.data vai te dizer o motivo.
-   */
-  let cob = await pixAutoClient.cob.put(effectiveTxid, {
-    calendario: { expiracao: 3600 },
-    valor: { original: input.immediateAmount },
-    chave: pixKey,
-    solicitacaoPagador:
-      input.solicitacaoPagador ?? "PowerCamp 2027 - pagamento inicial",
-    // devedor é opcional no COB. Se seu client suportar, pode habilitar:
-    // devedor: { cpf: participant.cpf, nome: participant.fullName },
-  });
+    // (A) garante uma COB imediata ativa para este novo enrollment/tentativa
+    const cob = await pixAutoClient.journey3.getOrCreateCobImmediate({
+      txid: effectiveTxid,
+      valor: immediateAmount,
+      solicitacaoPagador:
+        input.solicitacaoPagador ?? "PowerCamp 2027 - pagamento inicial",
+    });
 
-  // garante ATIVA antes de criar REC (evita erro semântico de ativação)
-  await waitForCobActive(effectiveTxid);
+    await waitForCobActive(effectiveTxid);
 
-  // (opcional) Recarrega cob para garantir pixCopiaECola preenchido
-  if (!cob.pixCopiaECola) {
-    cob = await pixAutoClient.cob.get(effectiveTxid);
+    const cobFull = cob.pixCopiaECola
+      ? cob
+      : await pixAutoClient.cob.get(effectiveTxid);
+
+    const idRec = existingByContrato.idRec;
+
+    if (!idRec) {
+      throw new AppError(
+        "Recorrência encontrada localmente sem idRec válido.",
+        500,
+        "EFI_REC_MISSING_IDREC",
+        existingByContrato,
+      );
+    }
+
+    const recFull = await pixAutoClient.rec.get(idRec, {
+      txid: effectiveTxid,
+    });
+    // (C) persiste attempt e retorna sem criar nova rec
+    await prisma.initialPaymentAttempt.update({
+      where: { id: attempt.id },
+      data: {
+        txid: effectiveTxid,
+        status: mapCobStatus(cobFull.status),
+        createdAtEfi: cobFull.calendario?.criacao
+          ? new Date(cobFull.calendario.criacao)
+          : null,
+        payload: asInputJson({
+          ticket: {
+            immediateAmount,
+            recurringAmount,
+            periodicidade: input.periodicidade,
+            dataInicial: input.dataInicial,
+            dataFinal: input.dataFinal ?? null,
+            contrato,
+            objeto: input.objeto ?? null,
+            teamCode: input.teamCode ?? null,
+            txidRevision,
+            reusedRec: true,
+            reusedIdRec: existingByContrato.idRec,
+          },
+          cob: cobFull,
+          recGet: recFull,
+        }),
+      },
+    });
+
+    return {
+      enrollmentId: enrollment.id,
+      txid: effectiveTxid,
+      cobPixCopiaECola: cobFull.pixCopiaECola ?? null,
+      idRec: existingByContrato.idRec,
+      recPixCopiaECola: recFull.dadosQR?.pixCopiaECola ?? null,
+    };
   }
 
-  // 9) REC com ativacao txid + loc
-  const rec = await pixAutoClient.rec.create({
-    vinculo: {
-      contrato: input.contrato,
-      devedor: { cpf: participant.cpf, nome: participant.fullName },
-      objeto: input.objeto ?? undefined,
-    },
-    calendario: {
-      dataInicial: input.dataInicial,
-      ...(input.dataFinal ? { dataFinal: input.dataFinal } : {}),
-      periodicidade: input.periodicidade,
-    },
-    valor: { valorRec: input.recurringAmount },
-    politicaRetentativa: "NAO_PERMITE",
-    loc: locrec.id,
-    ativacao: { dadosJornada: { txid: effectiveTxid } },
-  });
+  // Passo 1) locrec — deve ser único por recorrência
+  let locrec = await pixAutoClient.locrec.create();
 
-  // 10) GET rec com txid para obter QR da jornada 3 (pode vir ou demorar)
+  const ensureCobActive = async (txid: string) => {
+    const cob = await pixAutoClient.journey3.getOrCreateCobImmediate({
+      txid,
+      valor: immediateAmount,
+      solicitacaoPagador:
+        input.solicitacaoPagador ?? "PowerCamp 2027 - pagamento inicial",
+    });
+
+    await waitForCobActive(txid);
+
+    // pega pixCopiaECola com consistência
+    if (cob.pixCopiaECola) return cob;
+    return pixAutoClient.cob.get(txid);
+  };
+
+  // Passo 2) cob ATIVA
+  let cob = await ensureCobActive(effectiveTxid);
+
+  const createRec = async (txid: string, locId: number) => {
+    return pixAutoClient.rec.create({
+      vinculo: {
+        contrato, // <- contrato normalizado/gerado (como você já ajustou)
+        devedor: { cpf: participant.cpf, nome: participant.fullName },
+        objeto: input.objeto ?? undefined,
+      },
+      calendario: {
+        dataInicial: input.dataInicial,
+        dataFinal: input.dataFinal ?? undefined,
+        periodicidade: input.periodicidade,
+      },
+      valor: { valorRec: recurringAmount },
+      politicaRetentativa: "NAO_PERMITE",
+      loc: locId, // ✅ Jornada 3: loc = locrec.id
+      ativacao: { dadosJornada: { txid } },
+    });
+  };
+
+  // Passo 3) rec (com retry para txid expirada E loc já usado)
+  let rec: { idRec: string };
+
+  try {
+    rec = await createRec(effectiveTxid, locrec.id);
+  } catch (err) {
+    // ✅ loc já usado -> cria novo locrec e tenta novamente 1x
+    if (pixAutoClient.errors.isRecLocAlreadyUsed(err)) {
+      locrec = await pixAutoClient.locrec.create();
+      rec = await createRec(effectiveTxid, locrec.id);
+    } else if (pixAutoClient.errors.isContratoAlreadyHasActiveRecurrence(err)) {
+      throw new AppError(
+        "Contrato já possui recorrência ativa na Efí. Use outro contrato ou cancele a recorrência existente.",
+        409,
+        "EFI_REC_CONTRATO_ALREADY_ACTIVE",
+        err,
+      );
+    } else if (pixAutoClient.errors.isRecTxidExpired(err)) {
+      // ✅ txid expirada -> rotaciona txid -> recria COB -> tenta /rec mais 1x (com locrec NOVO)
+      txidRevision += 1;
+      const rotatedTxid = buildTxidWithRevision(txidBase, txidRevision);
+
+      const prev =
+        attempt.payload && isJsonObject(attempt.payload) ? attempt.payload : {};
+      const prevTicket =
+        prev["ticket"] &&
+        typeof prev["ticket"] === "object" &&
+        !Array.isArray(prev["ticket"])
+          ? (prev["ticket"] as Record<string, unknown>)
+          : {};
+
+      await prisma.initialPaymentAttempt.update({
+        where: { id: attempt.id },
+        data: {
+          txid: rotatedTxid,
+          payload: asInputJson({
+            ...prev,
+            ticket: {
+              ...prevTicket,
+              txidRevision,
+            } satisfies AttemptTicketPayload,
+          }),
+        },
+      });
+
+      effectiveTxid = rotatedTxid;
+
+      // novo cob
+      cob = await ensureCobActive(effectiveTxid);
+
+      // ✅ novo locrec sempre (evita reuse)
+      locrec = await pixAutoClient.locrec.create();
+
+      rec = await createRec(effectiveTxid, locrec.id);
+    } else {
+      throw err;
+    }
+  }
+
+  // Passo 4) GET rec/:idRec?txid=...
   const recFull = await pixAutoClient.rec.get(rec.idRec, {
     txid: effectiveTxid,
   });
 
-  // 11) persistência atômica
+  // Persistência atômica
   await prisma.$transaction(async (tx) => {
     await tx.initialPaymentAttempt.update({
       where: { id: attempt.id },
       data: {
         txid: effectiveTxid,
-        status: cob.status ? mapCobStatus(cob.status) : "CREATED",
+        status: mapCobStatus(cob.status),
         createdAtEfi: cob.calendario?.criacao
           ? new Date(cob.calendario.criacao)
           : null,
         payload: asInputJson({
           ticket: {
-            immediateAmount: input.immediateAmount,
-            recurringAmount: input.recurringAmount,
+            immediateAmount,
+            recurringAmount,
             periodicidade: input.periodicidade,
             dataInicial: input.dataInicial,
             dataFinal: input.dataFinal ?? null,
-            contrato: input.contrato,
+            contrato,
             objeto: input.objeto ?? null,
             teamCode: input.teamCode ?? null,
+            txidRevision,
           },
-          locrec,
+          locrec, // mantemos por rastreabilidade
           cob,
           rec,
           recGet: recFull,
@@ -314,27 +509,30 @@ export async function createEnrollmentAndStartJourney3UseCase(
       },
     });
 
-    // idempotência da REC por enrollment + txid
     const recIdempotencyKey = sha256(
       ["REC", enrollment.id, effectiveTxid].join("|"),
     );
+
+    // locId correto preferencialmente da COB
+    const effectiveLocId = locrec.id;
+    const effectiveLocationUrl = locrec.location;
 
     await tx.pixAutoRecurrence.upsert({
       where: { idempotencyKey: recIdempotencyKey },
       update: {
         idRec: rec.idRec,
-        status: recFull.status ?? rec.status ?? "CRIADA",
-        locId: locrec.id,
-        locationUrl: locrec.location,
+        status: recFull.status ?? "CRIADA",
+        locId: effectiveLocId,
+        locationUrl: effectiveLocationUrl,
         jornada: recFull.dadosQR?.jornada ?? null,
         pixCopiaECola: recFull.dadosQR?.pixCopiaECola ?? null,
-        valorRec: input.recurringAmount,
+        valorRec: recurringAmount,
         periodicidade: input.periodicidade,
         dataInicial: new Date(`${input.dataInicial}T00:00:00.000Z`),
         dataFinal: input.dataFinal
           ? new Date(`${input.dataFinal}T00:00:00.000Z`)
           : null,
-        contrato: input.contrato,
+        contrato,
         objeto: input.objeto ?? null,
       },
       create: {
@@ -342,17 +540,17 @@ export async function createEnrollmentAndStartJourney3UseCase(
         eventId: input.eventId,
         participantId: input.participantId,
         idRec: rec.idRec,
-        status: recFull.status ?? rec.status ?? "CRIADA",
-        valorRec: input.recurringAmount,
+        status: recFull.status ?? "CRIADA",
+        valorRec: recurringAmount,
         periodicidade: input.periodicidade,
         dataInicial: new Date(`${input.dataInicial}T00:00:00.000Z`),
         dataFinal: input.dataFinal
           ? new Date(`${input.dataFinal}T00:00:00.000Z`)
           : null,
-        contrato: input.contrato,
+        contrato,
         objeto: input.objeto ?? null,
-        locId: locrec.id,
-        locationUrl: locrec.location,
+        locId: effectiveLocId,
+        locationUrl: effectiveLocationUrl,
         jornada: recFull.dadosQR?.jornada ?? null,
         pixCopiaECola: recFull.dadosQR?.pixCopiaECola ?? null,
       },
