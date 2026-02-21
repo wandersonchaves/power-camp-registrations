@@ -1,4 +1,13 @@
+// src/lib/logger.ts
 export type LogLevel = "debug" | "info" | "warn" | "error";
+
+function safeJson(value: unknown): string {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return JSON.stringify({ message: "non-serializable meta" });
+  }
+}
 
 export function log(
   level: LogLevel,
@@ -8,12 +17,10 @@ export function log(
   const payload = {
     level,
     message,
-    ...meta,
+    ...(meta ?? {}),
     ts: new Date().toISOString(),
   };
 
-  // Console estruturado (ok pra Vercel/Docker/CloudWatch)
-  // Nunca logue segredos.
   // eslint-disable-next-line no-console
-  console[level === "debug" ? "log" : level](JSON.stringify(payload));
+  console[level === "debug" ? "log" : level](safeJson(payload));
 }
