@@ -73,6 +73,8 @@ model Event {
 
   participants Participant[]
   recurrences  PixAutoRecurrence[]
+  pixAutoLocRecs PixAutoLocRec[]
+  pixCobImmediates PixCobImmediate[]
 }
 
 model Participant {
@@ -90,6 +92,8 @@ model Participant {
   event       Event               @relation(fields: [eventId], references: [id])
   user        User                @relation(fields: [userId], references: [id])
   recurrences PixAutoRecurrence[]
+  pixAutoLocRecs PixAutoLocRec[]
+  pixCobImmediates PixCobImmediate[]
 
   @@unique([eventId, cpf])
   @@index([eventId])
@@ -201,4 +205,52 @@ model EfiWebhookEvent {
 
   @@unique([kind, externalId])
   @@index([kind, receivedAt])
+}
+
+model PixAutoLocRec {
+  id          String   @id @default(cuid())
+  eventId     String
+  participantId String?
+
+  // Efí
+  locId       Int      @unique
+  locationUrl String
+  criacao     DateTime?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  event       Event       @relation(fields: [eventId], references: [id])
+  participant Participant? @relation(fields: [participantId], references: [id])
+
+  @@index([eventId])
+  @@index([participantId])
+}
+
+model PixCobImmediate {
+  id            String   @id @default(cuid())
+  eventId       String
+  participantId String?
+
+  // Efí
+  txid          String?  @unique
+  status        String
+  valorOriginal String
+  criadoEm      DateTime?
+
+  // idempotência local
+  idempotencyKey String  @unique
+
+  // auditoria
+  payload Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event       Event        @relation(fields: [eventId], references: [id])
+  participant Participant? @relation(fields: [participantId], references: [id])
+
+  @@index([eventId])
+  @@index([participantId])
+  @@index([status])
 }
