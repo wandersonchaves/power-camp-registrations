@@ -1,54 +1,29 @@
 import "@/styles/globals.css";
 
-import React from "react";
-import { Metadata } from "next";
+import type { ReactNode } from "react";
 
+import { AppChrome } from "@/components/layouts/AppChrome";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/toaster";
-import { siteConfig } from "@/lib/constant";
+import { getAuthSession } from "@/lib/auth/server";
+import { AuthSessionProvider } from "@/lib/auth/session-provider";
 import { fonts } from "@/lib/fonts";
 import { cn } from "@/lib/utils";
 
-export const metadata: Metadata = {
-  metadataBase: new URL(siteConfig.url),
-  title: {
-    default: siteConfig.title,
-    template: `%s | ${siteConfig.title}`,
-  },
-  description: siteConfig.description,
-  keywords: siteConfig.keywords,
-  robots: { index: true, follow: true },
-  icons: {
-    icon: "/favicon/favicon.ico",
-    shortcut: "/favicon/favicon-16x16.png",
-    apple: "/favicon/apple-touch-icon.png",
-  },
-  verification: {
-    google: siteConfig.googleSiteVerificationId,
-  },
-  openGraph: {
-    url: siteConfig.url,
-    title: siteConfig.title,
-    description: siteConfig.description,
-    siteName: siteConfig.title,
-    images: "/opengraph-image.png",
-    type: "website",
-    locale: "en",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: siteConfig.title,
-    description: siteConfig.description,
-    images: "/opengraph-image.png",
-  },
-};
+export default async function RootLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  const session = await getAuthSession();
 
-export default function RootLayout({ children }: React.PropsWithChildren) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={cn("min-h-screen font-sans", fonts.join(" "))}>
-        <ThemeProvider attribute="class">
-          {children}
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <AuthSessionProvider session={session}>
+            <AppChrome>{children}</AppChrome>
+          </AuthSessionProvider>
           <Toaster />
         </ThemeProvider>
       </body>
