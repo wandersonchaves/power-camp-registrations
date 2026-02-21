@@ -6,7 +6,6 @@ export type PaymentWebhookEvent = {
   isPaid: boolean;
 };
 
-// Mantém o linter feliz e evita "any"
 type JsonObject = Record<string, unknown>;
 
 function isObject(value: unknown): value is JsonObject {
