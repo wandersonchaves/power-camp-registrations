@@ -14,7 +14,8 @@ async function main() {
       data: {
         name: "PowerCamp 2027",
         year: 2027,
-        isActive: true, // se existir no seu schema; se não existir, remova
+        // se existir no seu schema; se não existir, remova
+        isActive: true,
       },
     }));
 
@@ -29,6 +30,33 @@ async function main() {
     update: { name: "Equipe Leão" },
     create: { code: "LEAO", name: "Equipe Leão" },
   });
+
+  // ✅ Promote Admin by env (recomendado)
+  const adminEmail = String(process.env.ADMIN_EMAIL ?? "")
+    .trim()
+    .toLowerCase();
+  if (adminEmail) {
+    const user = await prisma.user.findUnique({ where: { email: adminEmail } });
+
+    if (user) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { role: "ADMIN", isActive: true },
+      });
+
+      console.log("✅ Admin promovido:", adminEmail);
+    } else {
+      console.log(
+        "ℹ️ ADMIN_EMAIL definido, mas usuário ainda não existe no banco:",
+        adminEmail,
+      );
+      console.log(
+        "   Faça login 1x com Google e rode o seed novamente para promover.",
+      );
+    }
+  } else {
+    console.log("ℹ️ ADMIN_EMAIL não definido. Nenhum admin foi promovido.");
+  }
 
   console.log("✅ Seed OK");
   console.log("📌 POWERCAMP_EVENT_ID:", ensuredEvent.id);
