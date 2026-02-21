@@ -143,6 +143,11 @@ export type CreateCobRequest = {
   loc?: { id: number };
 };
 
+export type PatchCobrRequest = {
+  status: "CANCELADA" | string;
+  infoAdicional?: string;
+};
+
 export type CobResponse = {
   txid: string;
   status: string;
