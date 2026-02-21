@@ -1,4 +1,5 @@
 import { startJourney3 } from "./actions";
+import { TeamField } from "./TeamField.client";
 
 export const runtime = "nodejs";
 
@@ -9,24 +10,13 @@ export default function EnrollPage() {
         <div className="rounded-3xl border bg-white p-6 shadow-sm">
           <h1 className="text-2xl font-semibold">Inscrição — PowerCamp 2027</h1>
           <p className="mt-1 text-sm text-gray-600">
-            Jornada 3: Pix imediato (1ª parcela) + criação da recorrência
-            mensal.
+            Escolha o tipo e o número de parcelas. Os valores são calculados
+            automaticamente.
           </p>
 
           <form action={startJourney3} className="mt-6 space-y-4">
-            <div>
-              <label htmlFor="team" className="text-sm font-medium">
-                Equipe
-              </label>
-              <select
-                name="teamCode"
-                className="mt-1 w-full rounded-2xl border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900"
-                defaultValue="AGUIA"
-              >
-                <option value="AGUIA">Equipe Águia</option>
-                <option value="LEAO">Equipe Leão</option>
-              </select>
-            </div>
+            {/* ✅ Só esse pedaço vira Client Component */}
+            <TeamField defaultTicketType="ANTECIPADA" defaultTeamCode="AGUIA" />
 
             <div>
               <label htmlFor="name" className="text-sm font-medium">
@@ -50,9 +40,6 @@ export default function EnrollPage() {
                 className="mt-1 w-full rounded-2xl border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900"
                 placeholder="000.000.000-00"
               />
-              <p className="mt-1 text-xs text-gray-600">
-                Pode digitar com pontos e traço — eu limpo antes de enviar.
-              </p>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -80,46 +67,36 @@ export default function EnrollPage() {
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label htmlFor="initialPayment" className="text-sm font-medium">
-                  Pagamento inicial
-                </label>
-                <input
-                  name="firstPaymentAmount"
-                  required
-                  defaultValue="10.00"
-                  className="mt-1 w-full rounded-2xl border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900"
-                  placeholder="10.00"
-                />
-                <p className="mt-1 text-xs text-gray-600">Formato: 0.00</p>
-              </div>
-
-              <div>
-                <label htmlFor="monthlyFee" className="text-sm font-medium">
-                  Mensalidade
-                </label>
-                <input
-                  name="monthlyAmount"
-                  required
-                  defaultValue="35.00"
-                  className="mt-1 w-full rounded-2xl border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900"
-                  placeholder="35.00"
-                />
-                <p className="mt-1 text-xs text-gray-600">Formato: 0.00</p>
-              </div>
+            <div>
+              <label htmlFor="parcelNumber" className="text-sm font-medium">
+                Número de parcelas
+              </label>
+              <select
+                name="installments"
+                defaultValue="12"
+                className="mt-1 w-full rounded-2xl border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900"
+              >
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => (
+                  <option key={n} value={n}>
+                    {n}x (todas iguais)
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-gray-600">
+                A 1ª parcela terá o mesmo valor das demais.
+              </p>
             </div>
 
             <button
               type="submit"
               className="w-full rounded-2xl bg-gray-900 px-4 py-3 text-sm font-medium text-white hover:bg-gray-800"
             >
-              Gerar Pix (imediato + recorrência)
+              Gerar Pix (1ª parcela)
             </button>
 
             <p className="text-xs text-gray-600">
-              Após pagar o Pix imediato, o webhook confirma e sua inscrição
-              entra no placar.
+              Após pagar a 1ª parcela, sua inscrição será confirmada
+              automaticamente.
             </p>
           </form>
         </div>
