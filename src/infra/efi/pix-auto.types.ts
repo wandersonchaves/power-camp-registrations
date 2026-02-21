@@ -1,3 +1,4 @@
+// src/infra/efi/pix-auto.types.ts
 export type Periodicidade = "MENSAL" | "SEMANAL" | "ANUAL" | "DIARIA" | string;
 
 export type RecStatus =
@@ -6,12 +7,14 @@ export type RecStatus =
   | "REPROVADA"
   | "CANCELADA"
   | string;
+
 export type SolicRecStatus =
   | "CRIADA"
   | "CANCELADA"
   | "EXPIRADA"
   | "APROVADA"
   | string;
+
 export type CobrStatus =
   | "CRIADA"
   | "ATIVA"
@@ -120,13 +123,21 @@ export type LocRecResponse = {
 
 export type CreateLocRecRequest = Record<string, never>;
 
+// ✅ Cobrança imediata: adiciona `loc?: number` (Jornada 3)
 export type CreateCobRequest = {
-  // Cobrança imediata (Pix)
-  calendario?: { expiracao?: number }; // segundos (depende do endpoint)
+  calendario?: { expiracao?: number };
+  devedor?: {
+    cpf?: string; // /^\d{11}$/
+    cnpj?: string; // /^\d{14}$/
+    nome: string;
+  };
   valor: { original: string };
-  chave?: string;
+  chave: string;
   solicitacaoPagador?: string;
   infoAdicionais?: Array<{ nome: string; valor: string }>;
+
+  // ✅ quando precisar usar loc em COB, o formato correto é objeto, não number
+  loc?: { id: number };
 };
 
 export type CobResponse = {
@@ -135,6 +146,7 @@ export type CobResponse = {
   valor?: { original: string };
   calendario?: { criacao?: string; expiracao?: number };
   location?: string;
-  loc?: { id: number; location: string; criacao?: string };
+  loc?: { id: number; location: string; criacao?: string; tipoCob?: string };
   pixCopiaECola?: string;
+  devedor?: { cpf?: string; cnpj?: string; nome?: string };
 };
