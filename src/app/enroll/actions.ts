@@ -1,14 +1,24 @@
+// src/app/enroll/actions.ts
 "use server";
 
 import type { Prisma } from "@prisma/client";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { AppError } from "@/lib/http-errors";
 import { prisma } from "@/lib/prisma";
 import { createEnrollmentAndStartJourney3UseCase } from "@/use-cases/enrollment/create-enrollment-and-start-journey3.use-case";
 
+type TeamCode = "AGUIA" | "LEAO";
+type TicketType = "ANTECIPADA" | "LOTE_ZERO";
+
 const schema = z.object({
   ticketType: z.enum(["ANTECIPADA", "LOTE_ZERO"]),
+
+  // ✅ vem do TeamField (Client Component) via <input name="teamCode" ... />
+  // Aceita vazio para não quebrar quando ticketType=LOTE_ZERO
+  teamCode: z.enum(["AGUIA", "LEAO"]).optional().or(z.literal("")),
+
   fullName: z.string().min(3).max(120),
   cpf: z.string().min(11).max(14),
   email: z.string().email().optional().or(z.literal("")),
@@ -29,8 +39,8 @@ type PlanPayload = {
 };
 
 type AttemptPayload = {
-  ticketType?: "ANTECIPADA" | "LOTE_ZERO";
-  teamCode?: "AGUIA" | "LEAO" | null;
+  ticketType?: TicketType;
+  teamCode?: TeamCode | null;
   plan?: PlanPayload;
 };
 
@@ -40,8 +50,11 @@ function assertEnv(name: string): string {
   return v;
 }
 
-function cleanCpf(cpf: string) {
-  return cpf.replace(/\D/g, "");
+function requireEnv(name: string): string {
+  const v = String(process.env[name] ?? "").trim();
+  if (!v)
+    throw new AppError(`${name} não definido no ambiente.`, 500, "MISSING_ENV");
+  return v;
 }
 
 function normalizeMoney(value: string): string {
@@ -49,6 +62,29 @@ function normalizeMoney(value: string): string {
   const n = Number(raw);
   if (!Number.isFinite(n) || n <= 0) throw new Error("Valor inválido.");
   return n.toFixed(2);
+}
+
+function normalizeCpf(cpf: string): string {
+  const v = String(cpf ?? "").replace(/\D/g, "");
+  if (!/^\d{11}$/.test(v)) {
+    throw new AppError("CPF inválido.", 400, "INVALID_CPF", { cpf });
+  }
+  return v;
+}
+
+async function assertEventExists(eventId: string) {
+  const ev = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { id: true },
+  });
+  if (!ev) {
+    throw new AppError(
+      "Evento não encontrado para inscrição (eventId inválido).",
+      400,
+      "EVENT_NOT_FOUND",
+      { eventId },
+    );
+  }
 }
 
 function moneyToCents(v: string): number {
@@ -108,9 +144,33 @@ function jsonObject(
     : {};
 }
 
+// ✅ regra: ANTECIPADA precisa de teamCode; LOTE_ZERO não tem equipe
+function resolveTeamCode(params: {
+  ticketType: TicketType;
+  formTeamCode: string | undefined;
+}): TeamCode | null {
+  const { ticketType, formTeamCode } = params;
+
+  if (ticketType === "LOTE_ZERO") return null;
+
+  const chosen = (formTeamCode ?? "").trim().toUpperCase();
+  if (chosen === "AGUIA" || chosen === "LEAO") return chosen;
+
+  // fallback: se o form vier vazio, usa env/default
+  const fallback = String(process.env.POWERCAMP_ANTECIPADA_TEAM_CODE ?? "AGUIA")
+    .trim()
+    .toUpperCase();
+
+  if (fallback === "AGUIA" || fallback === "LEAO") return fallback;
+
+  // último fallback seguro
+  return "AGUIA";
+}
+
 export async function startJourney3(formData: FormData) {
-  const input = schema.parse({
+  const parsed = schema.parse({
     ticketType: String(formData.get("ticketType") ?? ""),
+    teamCode: String(formData.get("teamCode") ?? ""), // ✅ agora lê do form
     fullName: String(formData.get("fullName") ?? ""),
     cpf: String(formData.get("cpf") ?? ""),
     email: String(formData.get("email") ?? ""),
@@ -118,43 +178,45 @@ export async function startJourney3(formData: FormData) {
     installments: formData.get("installments"),
   });
 
-  const eventId = assertEnv("POWERCAMP_EVENT_ID");
+  const eventId = requireEnv("POWERCAMP_EVENT_ID");
   const ownerUserId = assertEnv("POWERCAMP_OWNER_USER_ID");
-
-  const antecipadaTeamCode = (process.env.POWERCAMP_ANTECIPADA_TEAM_CODE ??
-    "AGUIA") as "AGUIA" | "LEAO";
 
   const antecipadaTotal = process.env.POWERCAMP_ANTECIPADA_TOTAL ?? "250.00";
   const loteZeroTotal = process.env.POWERCAMP_LOTE_ZERO_TOTAL ?? "0.00";
 
-  const ticketTotal =
-    input.ticketType === "ANTECIPADA" ? antecipadaTotal : loteZeroTotal;
+  await assertEventExists(eventId);
 
-  const cpf = cleanCpf(input.cpf);
-  if (cpf.length !== 11) {
-    throw new Error("CPF inválido. Informe um CPF com 11 dígitos.");
-  }
+  const cpf = normalizeCpf(parsed.cpf);
+
+  const ticketTotal =
+    parsed.ticketType === "ANTECIPADA" ? antecipadaTotal : loteZeroTotal;
 
   const plan = computeEqualInstallmentsPlan({
     total: ticketTotal,
-    installments: input.installments,
+    installments: parsed.installments,
+  });
+
+  // ✅ equipe final (AGUIA/LEAO ou null)
+  const teamCode = resolveTeamCode({
+    ticketType: parsed.ticketType,
+    formTeamCode: typeof parsed.teamCode === "string" ? parsed.teamCode : "",
   });
 
   // Participant idempotente por (eventId, cpf)
   const participant = await prisma.participant.upsert({
     where: { eventId_cpf: { eventId, cpf } },
     update: {
-      fullName: input.fullName,
-      ...(input.email ? { email: input.email } : {}),
-      ...(input.phone ? { phone: input.phone } : {}),
+      fullName: parsed.fullName,
+      ...(parsed.email ? { email: parsed.email } : {}),
+      ...(parsed.phone ? { phone: parsed.phone } : {}),
     },
     create: {
       eventId,
       userId: ownerUserId,
-      fullName: input.fullName,
       cpf,
-      ...(input.email ? { email: input.email } : {}),
-      ...(input.phone ? { phone: input.phone } : {}),
+      fullName: parsed.fullName,
+      ...(parsed.email ? { email: parsed.email } : {}),
+      ...(parsed.phone ? { phone: parsed.phone } : {}),
     },
     select: { id: true },
   });
@@ -172,16 +234,17 @@ export async function startJourney3(formData: FormData) {
   const out = await createEnrollmentAndStartJourney3UseCase({
     eventId,
     participantId: participant.id,
-    teamCode: input.ticketType === "ANTECIPADA" ? antecipadaTeamCode : null,
+    teamCode, // ✅ agora vem do usuário
 
     immediateAmount: plan.firstPaymentAmount,
     recurringAmount: plan.isSinglePayment
       ? plan.firstPaymentAmount
       : plan.recurringAmount,
 
+    // ⚠️ contrato: mantenha sua estratégia atual (você já ajustou isso antes)
     contrato: `ENROLLMENT:${eventId}:${participant.id}`,
     objeto:
-      input.ticketType === "ANTECIPADA"
+      parsed.ticketType === "ANTECIPADA"
         ? "PowerCamp 2027 - Antecipada"
         : "PowerCamp 2027 - Lote Zero",
     periodicidade: "MENSAL",
@@ -189,7 +252,7 @@ export async function startJourney3(formData: FormData) {
     dataFinal,
 
     solicitacaoPagador:
-      input.ticketType === "ANTECIPADA"
+      parsed.ticketType === "ANTECIPADA"
         ? `PowerCamp 2027 - Antecipada (${plan.installments}x)`
         : `PowerCamp 2027 - Lote Zero (${plan.installments}x)`,
   });
@@ -209,9 +272,8 @@ export async function startJourney3(formData: FormData) {
       data: {
         payload: {
           ...prev,
-          ticketType: input.ticketType,
-          teamCode:
-            input.ticketType === "ANTECIPADA" ? antecipadaTeamCode : null,
+          ticketType: parsed.ticketType,
+          teamCode, // ✅ persiste o que o usuário escolheu
           plan,
         } satisfies AttemptPayload,
       },
