@@ -31,14 +31,17 @@ function isPublicPath(pathname: string) {
 function redirectTo(req: NextRequest, pathname: string) {
   const url = req.nextUrl.clone();
   url.pathname = pathname;
-  url.search = ""; // evita carregar query antiga
+  url.search = "";
   return NextResponse.redirect(url);
 }
 
-function redirectToSignIn(req: NextRequest, callbackUrl: string) {
+function redirectToSignIn(req: NextRequest) {
+  // mantém a URL que o usuário estava tentando acessar
+  const callbackUrl = req.nextUrl.clone();
   const url = req.nextUrl.clone();
   url.pathname = "/api/auth/signin";
-  url.searchParams.set("callbackUrl", callbackUrl);
+  url.search = "";
+  url.searchParams.set("callbackUrl", callbackUrl.toString());
   return NextResponse.redirect(url);
 }
 
@@ -71,7 +74,7 @@ export async function middleware(req: NextRequest) {
 
   // 3) Rotas /admin: apenas ADMIN ativo
   if (isAdminPath(pathname)) {
-    if (!token) return redirectToSignIn(req, "/admin/race");
+    if (!token) return redirectToSignIn(req);
     if (!isAdmin) return redirectTo(req, "/enroll");
     return NextResponse.next();
   }
