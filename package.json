@@ -21,7 +21,7 @@
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
     "prepare": "husky",
     "preview": "next build && next start",
-    "start": "next start",
+    "start": "prisma migrate deploy && next start",
     "test:watch": "jest --watchAll",
     "test": "jest",
     "typecheck": "tsc --noEmit"
