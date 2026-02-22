@@ -8,6 +8,7 @@
     ],
     "types": [
       "@types/node",
+      "next-auth",
       "@testing-library/jest-dom"
     ],
     "allowJs": true,
@@ -50,6 +51,7 @@
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
+    "src/types/**/*.d.ts",
     ".next/types/**/*.ts",
     "prisma/seed.cjs",
     "scripts/fix-staging-user.cjs"
