@@ -153,6 +153,8 @@ model PixAutoRecurrence {
   // idempotência do seu sistema (evita duplicar rec)
   idempotencyKey String @unique
 
+  payload Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
