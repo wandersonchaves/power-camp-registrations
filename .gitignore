@@ -48,5 +48,10 @@ sitemap-*.xml
 /blob-report/
 /playwright/.cache/
 
-# certs
-certs
+# backups / dumps
+*.dump
+*.json
+
+# certificados
+certs/
+certs_prd/
