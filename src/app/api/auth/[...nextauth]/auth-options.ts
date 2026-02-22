@@ -14,13 +14,34 @@ type TokenWithAppFields = {
   isActive?: boolean;
 };
 
+/**
+ * Lê role/isActive do banco com segurança.
+ * - Evita depender apenas do "user" do callback (que só vem no 1º login).
+ * - Garante que o middleware receba token.role/token.isActive.
+ */
+async function loadUserFlags(userId: string): Promise<{
+  role: AppRole;
+  isActive: boolean;
+} | null> {
+  const u = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true, isActive: true },
+  });
+
+  if (!u) return null;
+
+  return {
+    role: (u.role ?? "USER") as AppRole,
+    isActive: Boolean(u.isActive),
+  };
+}
+
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
 
-  // ✅ Você usa middleware com getToken() + callbacks jwt => precisa ser JWT
+  // ✅ middleware usa getToken(); com callbacks jwt isso precisa ser JWT
   session: { strategy: "jwt" },
 
-  // ✅ Evita "sub undefined" por secret ausente/instável (local/railway)
   secret: env.NEXTAUTH_SECRET,
 
   providers: [
@@ -33,21 +54,62 @@ export const authOptions: NextAuthOptions = {
 
   callbacks: {
     async jwt({ token, user }) {
-      // No primeiro login, user existe (adapter)
+      const t = token as TokenWithAppFields;
+
+      // 1) No 1º login, user existe e já tem id (e pode ter role/isActive)
       if (user) {
-        const u = user as unknown as { role?: AppRole; isActive?: boolean };
-        (token as TokenWithAppFields).role = u.role ?? "USER";
-        (token as TokenWithAppFields).isActive = Boolean(u.isActive);
+        const u = user as unknown as {
+          id?: string;
+          role?: AppRole;
+          isActive?: boolean;
+        };
+
+        // Garante sub (algumas configs podem não preencher imediatamente)
+        if (u.id) t.sub = u.id;
+
+        // Se o user do adapter já vier com role/isActive, usa
+        if (u.role) t.role = u.role;
+        if (typeof u.isActive === "boolean") t.isActive = u.isActive;
+
+        // Se não vier, busca no banco (fonte de verdade)
+        if (t.sub && (t.role == null || t.isActive == null)) {
+          const flags = await loadUserFlags(t.sub);
+          if (flags) {
+            t.role = flags.role;
+            t.isActive = flags.isActive;
+          } else {
+            // fallback seguro
+            t.role = t.role ?? "USER";
+            t.isActive = Boolean(t.isActive);
+          }
+        }
+
+        return t;
       }
-      return token;
+
+      // 2) Nas requisições seguintes, user não existe.
+      //    Se role/isActive estiverem ausentes (ou token antigo), carrega do banco.
+      if (t.sub && (t.role == null || t.isActive == null)) {
+        const flags = await loadUserFlags(t.sub);
+        if (flags) {
+          t.role = flags.role;
+          t.isActive = flags.isActive;
+        } else {
+          t.role = t.role ?? "USER";
+          t.isActive = Boolean(t.isActive);
+        }
+      }
+
+      return t;
     },
 
     async session({ session, token }) {
-      // Em JWT strategy, token contém o "sub" (userId)
       const t = token as TokenWithAppFields;
 
       if (!session.user) return session;
 
+      // ✅ garante compat com seu middleware + UI
+      // (se você tem module augmentation, isso tipa; se não, isso continua funcionando em runtime)
       session.user.id = t.sub ?? session.user.id;
       session.user.role = t.role ?? "USER";
       session.user.isActive = Boolean(t.isActive);
