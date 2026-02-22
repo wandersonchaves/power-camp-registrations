@@ -1,8 +1,15 @@
 {
   "compilerOptions": {
     "target": "es5",
-    "lib": ["dom", "dom.iterable", "esnext"],
-    "types": ["@types/node", "@testing-library/jest-dom"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "types": [
+      "@types/node",
+      "@testing-library/jest-dom"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -21,19 +28,33 @@
     ],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"],
-      "@/components/*": ["src/components/*"],
-      "@/lib/*": ["src/lib/*"],
-      "@/services/*": ["src/use-cases/*"]
+      "@/*": [
+        "./src/*"
+      ],
+      "@/components/*": [
+        "src/components/*"
+      ],
+      "@/lib/*": [
+        "src/lib/*"
+      ],
+      "@/services/*": [
+        "src/use-cases/*"
+      ]
     }
   },
-  "typeRoots": ["src/types", "node_modules/@types"],
+  "typeRoots": [
+    "src/types",
+    "node_modules/@types"
+  ],
   "include": [
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    "prisma/seed.cjs"
+    "prisma/seed.cjs",
+    "scripts/fix-staging-user.cjs"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules"
+  ]
 }
