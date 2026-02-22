@@ -67,7 +67,6 @@ function extractViolacoes(data: unknown): EfiViolation[] {
 
   if (!d.violacoes) return [];
 
-  // array normal
   if (Array.isArray(d.violacoes)) {
     return d.violacoes
       .filter((v) => v && typeof v === "object")
@@ -82,7 +81,6 @@ function extractViolacoes(data: unknown): EfiViolation[] {
       .filter((v) => v.razao.length > 0);
   }
 
-  // string JSON (alguns logs serializam assim)
   if (typeof d.violacoes === "string") {
     try {
       const parsed = JSON.parse(d.violacoes) as unknown;
@@ -140,6 +138,18 @@ function isCobNotFoundError(err: unknown): boolean {
   );
 }
 
+// ✅ helper novo (coloque perto dos outros helpers)
+function isRecQueryTxidExpired(err: unknown): boolean {
+  if (!isAxiosError(err)) return false;
+  const data = err.response?.data as { violacoes?: unknown } | undefined;
+  const violacoes = extractViolacoes(data);
+  return violacoes.some(
+    (v) =>
+      (v.propriedade ?? "").toLowerCase().includes("query.txid") &&
+      v.razao.toLowerCase().includes("expir"),
+  );
+}
+
 export type Journey3CobImmediateParams = Readonly<{
   txid: string;
   valor: string;
@@ -158,20 +168,13 @@ export const pixAutoClient = {
   },
 
   cob: {
-    /**
-     * POST /v2/cob
-     * ✅ txid é definido pela Efí (endpoint de exceção)
-     */
+    // ✅ necessário para create-journey3.use-case.ts (POST /v2/cob)
     async create(body: CreateCobRequest): Promise<CobResponse> {
       const http = getEfiHttpClient();
       const res = await http.post<CobResponse>("/v2/cob", body);
       return res.data;
     },
 
-    /**
-     * PUT /v2/cob/:txid
-     * ✅ idempotente pelo txid
-     */
     async put(txid: string, body: CreateCobRequest): Promise<CobResponse> {
       assertValidTxid(txid);
       const http = getEfiHttpClient();
@@ -254,10 +257,6 @@ export const pixAutoClient = {
   },
 
   rec: {
-    /**
-     * POST /v2/rec
-     * ✅ loc deve ser number (conforme doc e exemplos)
-     */
     async create(body: CreateRecRequest): Promise<RecResponse> {
       const http = getEfiHttpClient();
       try {
@@ -273,17 +272,42 @@ export const pixAutoClient = {
       }
     },
 
-    /**
-     * GET /v2/rec/:idRec?txid=...
-     * ✅ Jornada 3 precisa do txid como query param para dadosQR.pixCopiaECola
-     */
     async get(idRec: string, opts?: { txid?: string }): Promise<RecResponse> {
+      const safeIdRec = String(idRec ?? "").trim();
+      if (!safeIdRec) {
+        throw new Error("[EFI] idRec vazio ao consultar /v2/rec/:idRec.");
+      }
+
+      const txid = opts?.txid ? String(opts.txid).trim() : "";
       const http = getEfiHttpClient();
-      const res = await http.get<RecResponse>(
-        `/v2/rec/${encodeURIComponent(idRec)}`,
-        { params: opts?.txid ? { txid: opts.txid } : undefined },
-      );
-      return res.data;
+
+      try {
+        const res = await http.get<RecResponse>(
+          `/v2/rec/${encodeURIComponent(safeIdRec)}`,
+          { params: txid ? { txid } : undefined },
+        );
+        return res.data;
+      } catch (err) {
+        // ✅ Se a Efí disser que query.txid expirou, faz fallback automático:
+        if (txid && isRecQueryTxidExpired(err)) {
+          log("warn", "[EFI] rec.get txid expirado; retry sem txid", {
+            idRec: safeIdRec,
+            txid,
+          });
+
+          const res2 = await http.get<RecResponse>(
+            `/v2/rec/${encodeURIComponent(safeIdRec)}`,
+          );
+          return res2.data;
+        }
+
+        logAxiosError(err, {
+          op: "GET /v2/rec/:idRec",
+          baseURL: http.defaults.baseURL,
+          url: `/v2/rec/${safeIdRec}`,
+        });
+        throw err;
+      }
     },
   },
 
