@@ -126,6 +126,20 @@ function makeContratoEfi(params: {
   return safeDigits.slice(-8).padStart(8, "7");
 }
 
+function computeCobExpiresAtMs(cob: {
+  calendario?: { criacao?: string; expiracao?: number };
+}): number | null {
+  const created = cob.calendario?.criacao;
+  const expSec = cob.calendario?.expiracao;
+
+  if (!created || !expSec || !Number.isFinite(expSec)) return null;
+
+  const createdMs = Date.parse(created);
+  if (!Number.isFinite(createdMs)) return null;
+
+  return createdMs + expSec * 1000;
+}
+
 /**
  * ✅ Jornada 3 (EFI):
  * 1) POST /v2/locrec
@@ -475,8 +489,15 @@ export async function createEnrollmentAndStartJourney3UseCase(
   }
 
   // Passo 4) GET rec/:idRec?txid=...
+  const cobExpiresAtMs = computeCobExpiresAtMs(cob);
+  const nowMs = Date.now();
+
+  // ✅ só envia txid se ainda estiver dentro da validade (com folga)
+  const shouldSendTxid =
+    cobExpiresAtMs !== null ? nowMs < cobExpiresAtMs - 30_000 : true;
+
   const recFull = await pixAutoClient.rec.get(rec.idRec, {
-    txid: effectiveTxid,
+    txid: shouldSendTxid ? effectiveTxid : undefined,
   });
 
   // Persistência atômica
