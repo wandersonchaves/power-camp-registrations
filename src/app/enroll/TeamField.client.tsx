@@ -3,34 +3,42 @@
 
 import * as React from "react";
 
+type TicketType = "ANTECIPADA" | "LOTE_ZERO";
+type TeamCode = "AGUIA" | "LEAO";
+
 type Props = {
-  defaultTicketType?: "ANTECIPADA" | "LOTE_ZERO";
-  defaultTeamCode?: "AGUIA" | "LEAO";
+  defaultTicketType?: TicketType;
+  defaultTeamCode?: TeamCode;
 };
 
 export function TeamField({
   defaultTicketType = "ANTECIPADA",
   defaultTeamCode = "AGUIA",
 }: Props) {
-  const [ticketType, setTicketType] = React.useState<
-    "ANTECIPADA" | "LOTE_ZERO"
-  >(defaultTicketType);
+  const [ticketType, setTicketType] =
+    React.useState<TicketType>(defaultTicketType);
+
+  const [teamCode, setTeamCode] = React.useState<TeamCode>(defaultTeamCode);
 
   const isLoteZero = ticketType === "LOTE_ZERO";
 
+  // ✅ Se virar Lote Zero, “limpa” teamCode enviado
+  // (mantemos o state do select para quando voltar a ANTECIPADA)
+  const submittedTeamCode = isLoteZero ? "" : teamCode;
+
   return (
     <>
-      {/* Ticket Type (controlado aqui) */}
+      {/* Ticket Type */}
       <div>
-        <label htmlFor="registrationType" className="text-sm font-medium">
+        <label htmlFor="ticketType" className="text-sm font-medium">
           Tipo de inscrição
         </label>
+
         <select
+          id="ticketType"
           name="ticketType"
           value={ticketType}
-          onChange={(e) =>
-            setTicketType(e.target.value as "ANTECIPADA" | "LOTE_ZERO")
-          }
+          onChange={(e) => setTicketType(e.target.value as TicketType)}
           className="mt-1 w-full rounded-2xl border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900"
         >
           <option value="ANTECIPADA">
@@ -38,23 +46,24 @@ export function TeamField({
           </option>
           <option value="LOTE_ZERO">Lote Zero (sorteio na bolinha)</option>
         </select>
+
         <p className="mt-1 text-xs text-gray-600">
           Se selecionar <strong>Lote Zero</strong>, a equipe será definida
           depois.
         </p>
       </div>
 
-      {/* Team Code */}
+      {/* Team Code (UI) */}
       <div>
-        <label htmlFor="team" className="text-sm font-medium">
+        <label htmlFor="teamCodeSelect" className="text-sm font-medium">
           Equipe (não disponível no Lote Zero)
         </label>
 
-        {/* ✅ Quando for Lote Zero, NÃO envia teamCode (select disabled)
-            e envia hidden vazio (garante payload consistente no server). */}
+        {/* ✅ Select sem "name" (apenas UI). O que vale é o hidden abaixo. */}
         <select
-          name="teamCode"
-          defaultValue={defaultTeamCode}
+          id="teamCodeSelect"
+          value={teamCode}
+          onChange={(e) => setTeamCode(e.target.value as TeamCode)}
           disabled={isLoteZero}
           className={[
             "mt-1 w-full rounded-2xl border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900",
@@ -65,7 +74,8 @@ export function TeamField({
           <option value="LEAO">Equipe Leão</option>
         </select>
 
-        <input type="hidden" name="teamCode" value="" disabled={!isLoteZero} />
+        {/* ✅ Um ÚNICO campo enviado para o server */}
+        <input type="hidden" name="teamCode" value={submittedTeamCode} />
 
         <p className="mt-1 text-xs text-gray-600">
           No <strong>Lote Zero</strong>, a equipe não é escolhida aqui.
