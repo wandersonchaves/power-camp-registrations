@@ -72,7 +72,7 @@ model User {
   emailVerified DateTime?
   image         String?
   isActive      Boolean   @default(false)
-  role          UserRole  @default(USER) // ✅ novo
+  role          UserRole  @default(USER)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -97,19 +97,19 @@ model Event {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  participants Participant[]
-  recurrences  PixAutoRecurrence[]
-  pixAutoLocRecs PixAutoLocRec[]
+  participants     Participant[]
+  recurrences      PixAutoRecurrence[]
+  pixAutoLocRecs   PixAutoLocRec[]
   pixCobImmediates PixCobImmediate[]
-  enrollments Enrollment[]
-  teamMilestones TeamMilestone[]
-  teamAwards TeamAward[]
+  enrollments      Enrollment[]
+  teamMilestones   TeamMilestone[]
+  teamAwards       TeamAward[]
 }
 
 model Participant {
-  id     String @id @default(cuid())
+  id       String  @id @default(cuid())
   eventId  String
-  userId String
+  userId   String
   fullName String
   cpf      String
   email    String?
@@ -118,12 +118,12 @@ model Participant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  event       Event               @relation(fields: [eventId], references: [id])
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  recurrences PixAutoRecurrence[]
-  pixAutoLocRecs PixAutoLocRec[]
+  event            Event               @relation(fields: [eventId], references: [id])
+  user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recurrences      PixAutoRecurrence[]
+  pixAutoLocRecs   PixAutoLocRec[]
   pixCobImmediates PixCobImmediate[]
-  enrollments Enrollment[]
+  enrollments      Enrollment[]
 
   @@unique([eventId, cpf])
   @@index([eventId])
@@ -134,7 +134,6 @@ model PixAutoRecurrence {
   eventId       String
   participantId String
 
-  // Efí
   idRec         String?   @unique
   status        String
   valorRec      String
@@ -144,13 +143,11 @@ model PixAutoRecurrence {
   contrato      String
   objeto        String?
 
-  // Location / QR
   locId         Int?
   locationUrl   String?
   pixCopiaECola String?
   jornada       String?
 
-  // idempotência do seu sistema (evita duplicar rec)
   idempotencyKey String @unique
 
   payload Json?
@@ -172,18 +169,15 @@ model PixAutoSolicRec {
   id           String @id @default(cuid())
   recurrenceId String
 
-  // Efí
   idSolicRec    String?  @unique
   status        String
   dataExpiracao DateTime
 
-  // Destinatário (pagador)
   agencia String
   conta   String
   cpf     String
   ispb    String
 
-  // snapshot/auditoria
   recPayload Json?
 
   idempotencyKey String @unique
@@ -201,7 +195,6 @@ model PixAutoCobr {
   id           String @id @default(cuid())
   recurrenceId String
 
-  // Efí
   txid           String?  @unique
   status         String
   dataVencimento DateTime
@@ -211,10 +204,8 @@ model PixAutoCobr {
   ajusteDiaUtil       Boolean @default(false)
   politicaRetentativa String?
 
-  // idempotência para criação de cobrança
   idempotencyKey String @unique
 
-  // payload/auditoria (opcional)
   payload Json?
 
   createdAt DateTime @default(now())
@@ -228,10 +219,10 @@ model PixAutoCobr {
 }
 
 model EfiWebhookEvent {
-  id         String   @id @default(cuid())
-  kind       String   // 'webhookrec' | 'webhookcobr'
-  externalId String   // hash do payload para idempotência
-  payload    Json
+  id          String    @id @default(cuid())
+  kind        String
+  externalId  String
+  payload     Json
   receivedAt  DateTime  @default(now())
   processedAt DateTime?
 
@@ -240,19 +231,18 @@ model EfiWebhookEvent {
 }
 
 model PixAutoLocRec {
-  id          String   @id @default(cuid())
-  eventId     String
+  id            String  @id @default(cuid())
+  eventId       String
   participantId String?
 
-  // Efí
-  locId       Int      @unique
+  locId       Int       @unique
   locationUrl String
   criacao     DateTime?
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  event       Event       @relation(fields: [eventId], references: [id])
+  event       Event        @relation(fields: [eventId], references: [id])
   participant Participant? @relation(fields: [participantId], references: [id])
 
   @@index([eventId])
@@ -260,20 +250,17 @@ model PixAutoLocRec {
 }
 
 model PixCobImmediate {
-  id            String   @id @default(cuid())
+  id            String  @id @default(cuid())
   eventId       String
   participantId String?
 
-  // Efí
-  txid          String?  @unique
+  txid          String?   @unique
   status        String
   valorOriginal String
   criadoEm      DateTime?
 
-  // idempotência local
-  idempotencyKey String  @unique
+  idempotencyKey String @unique
 
-  // auditoria
   payload Json?
 
   createdAt DateTime @default(now())
@@ -294,53 +281,51 @@ model Team {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  enrollments Enrollment[]
+  enrollments    Enrollment[]
   teamMilestones TeamMilestone[]
-  teamAwards TeamAward[]
+  teamAwards     TeamAward[]
 }
 
 model Enrollment {
-  id            String           @id @default(cuid())
+  id            String  @id @default(cuid())
   eventId       String
   participantId String
-  teamId        String?          // ✅ agora opcional
+  teamId        String?
 
-  status        EnrollmentStatus @default(PENDING)
-  reservedAt    DateTime         @default(now())
-  confirmedAt   DateTime?
+  status      EnrollmentStatus @default(PENDING)
+  reservedAt  DateTime         @default(now())
+  confirmedAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   event       Event       @relation(fields: [eventId], references: [id])
   participant Participant @relation(fields: [participantId], references: [id])
-  team        Team?       @relation(fields: [teamId], references: [id]) // ✅ opcional
+  team        Team?       @relation(fields: [teamId], references: [id])
 
   initialPayment InitialPaymentAttempt?
 
   @@unique([eventId, participantId])
-  // ✅ índices com teamId opcional: mantemos, mas sem depender de teamId sempre existir
   @@index([eventId, status])
   @@index([teamId, status])
 }
 
 model InitialPaymentAttempt {
-  id             String   @id @default(cuid())
-  enrollmentId   String   @unique
+  id           String @id @default(cuid())
+  enrollmentId String @unique
 
-  // Efí cobrança imediata (Jornada 3)
-  txid           String   // ✅ sem ?
-  status         PaymentStatus
-  createdAtEfi  DateTime?
-  paidAt        DateTime?
+  txid         String
+  status       PaymentStatus
+  createdAtEfi DateTime?
+  paidAt       DateTime?
 
-  amount         String
-  payload        Json     @default("{}")
+  amount  String
+  payload Json   @default("{}")
 
   idempotencyKey String
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   enrollment Enrollment @relation(fields: [enrollmentId], references: [id])
 
@@ -348,14 +333,14 @@ model InitialPaymentAttempt {
 }
 
 model TeamMilestone {
-  id        String   @id @default(cuid())
+  id        String @id @default(cuid())
   eventId   String
   teamId    String
-  milestone Int      // ex.: 50
+  milestone Int
 
-  achievedAt DateTime
+  achievedAt   DateTime
   enrollmentId String
-  txid        String
+  txid         String
 
   createdAt DateTime @default(now())
 
@@ -367,22 +352,21 @@ model TeamMilestone {
 }
 
 model TeamAward {
-  id        String   @id @default(cuid())
-  eventId   String
-  awardKey  String   // ex.: "FIRST_50_PAID"
+  id           String @id @default(cuid())
+  eventId      String
+  awardKey     String
   winnerTeamId String
 
   pointsGranted Int
-  decidedAt DateTime
+  decidedAt     DateTime
 
-  // auditoria
   decidedByRule String
   tieBreakNote  String?
 
   createdAt DateTime @default(now())
 
-  event Event @relation(fields: [eventId], references: [id])
-  winnerTeam Team @relation(fields: [winnerTeamId], references: [id])
+  event      Event @relation(fields: [eventId], references: [id])
+  winnerTeam Team  @relation(fields: [winnerTeamId], references: [id])
 
   @@unique([eventId, awardKey])
   @@index([eventId, decidedAt])
