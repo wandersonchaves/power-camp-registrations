@@ -1,4 +1,5 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export { POST } from "../route";
+// Efí pode anexar /rec ao final da URL cadastrada.
+export { GET, HEAD, POST } from "../route";
