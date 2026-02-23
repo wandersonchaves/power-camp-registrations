@@ -2,6 +2,7 @@
 import type { Prisma } from "@prisma/client";
 import Link from "next/link";
 
+import { AutoRefreshPayment } from "./_components/AutoRefreshPayment.client";
 import { refreshRecurrence } from "./actions";
 
 import { PixQr } from "@/components/pix/PixQr";
@@ -292,6 +293,8 @@ export default async function EnrollSuccessPage(props: {
               ) : null}
             </div>
           </div>
+
+          <AutoRefreshPayment enrollmentId={enrollment.id} enabled={!isPaid} />
 
           <div className="mt-4">
             {!isPaid ? (
