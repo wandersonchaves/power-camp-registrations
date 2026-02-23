@@ -1,4 +1,3 @@
-// src/middleware.ts
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
@@ -36,7 +35,6 @@ function redirectTo(req: NextRequest, pathname: string) {
 }
 
 function redirectToSignIn(req: NextRequest) {
-  // mantém a URL que o usuário estava tentando acessar
   const callbackUrl = req.nextUrl.clone();
   const url = req.nextUrl.clone();
   url.pathname = "/api/auth/signin";
@@ -84,7 +82,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // 5) Qualquer outra rota fora de /admin e /enroll:
+  // 5) Outras rotas:
   //    - ADMIN ativo: pode navegar
   //    - USER/visitante: joga para /enroll
   if (isAdmin) return NextResponse.next();

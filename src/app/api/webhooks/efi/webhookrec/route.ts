@@ -1,9 +1,7 @@
-// src/app/api/webhooks/efi/webhookrec/route.ts
 import { type NextRequest, NextResponse } from "next/server";
 
 import {
   assertEfiWebhookAllowed,
-  readJsonBody,
   sha256Json,
 } from "@/infra/efi/webhooks/efi-webhook.guard";
 import { prisma } from "@/lib/prisma";
@@ -12,13 +10,17 @@ import { asInputJson } from "@/lib/prisma-json";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/**
- * OBS importante:
- * - A Efí valida a URL do webhookrec chamando sua rota (POST) durante o cadastro.
- * - Se você responder 401, o cadastro falha com "URL inacessível".
- * - Por isso, este handler SEMPRE responde 200.
- * - Segurança: só processa / persiste se passar no guard.
- */
+const OK = () => new NextResponse("200", { status: 200 });
+
+async function tryReadJson(req: NextRequest): Promise<unknown | null> {
+  try {
+    const text = await req.text();
+    if (!text?.trim()) return null;
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
 
 async function processRecWebhook(params: {
   kind: string;
@@ -36,49 +38,65 @@ async function processRecWebhook(params: {
 
   if (created.processedAt) return;
 
-  // ✅ TODO: aqui você atualiza PixAutoRecurrence / PixAutoCobr etc.
-  // Por enquanto: marca como processado (audit trail)
+  // ✅ TODO: quando tiver o shape do callback, atualize PixAutoRecurrence/PixAutoCobr.
+  // Por enquanto: audit trail + marca como processado.
   await prisma.efiWebhookEvent.update({
     where: { id: created.id },
     data: { processedAt: new Date() },
   });
 }
 
+/**
+ * ✅ GET/HEAD: ping/validação de acessibilidade (muito comum em PSPs)
+ */
+export async function GET() {
+  return OK();
+}
+
+export async function HEAD() {
+  return OK();
+}
+
+/**
+ * ✅ POST: webhook real (ou teste)
+ * Regras:
+ * - ACK 200 SEMPRE (evita falha no cadastro e evita “URL inacessível”)
+ * - Só processa se passar no guard
+ */
 export async function POST(req: NextRequest) {
-  // ✅ NUNCA devolva 401 aqui, senão a Efí considera "URL inacessível"
-  // (o cadastro do webhookrec falha).
+  let allowed = false;
+
   try {
-    // 1) Primeiro: valida segurança (se falhar, a gente NÃO processa)
-    try {
-      assertEfiWebhookAllowed(req);
-    } catch (err) {
-      // ✅ Aceita handshake/teste da Efí sem quebrar o cadastro
-      // ✅ Segurança: não persiste nada quando não autorizado
-      const msg = err instanceof Error ? err.message : "guard_failed";
-      console.error("[EFI webhookrec] unauthorized (ack only)", {
-        msg,
-        path: req.nextUrl.pathname,
-      });
+    assertEfiWebhookAllowed(req);
+    allowed = true;
+  } catch (err) {
+    // ❗ Nunca 401 aqui.
+    const msg = err instanceof Error ? err.message : "guard_failed";
+    console.error("[EFI webhookrec] unauthorized (ack only)", {
+      msg,
+      path: req.nextUrl.pathname,
+    });
+    allowed = false;
+  }
 
-      return new NextResponse("200", { status: 200 });
-    }
+  const payload = await tryReadJson(req);
 
-    // 2) Autorizado → processa payload normalmente
-    const payload = await readJsonBody(req);
+  // teste/ping sem body → ACK
+  if (!payload) return OK();
 
+  // não autorizado → ACK sem processar
+  if (!allowed) return OK();
+
+  try {
     await processRecWebhook({
       kind: "webhookrec",
       externalId: sha256Json(payload),
       payload,
     });
-
-    return new NextResponse("200", { status: 200 });
   } catch (err) {
-    // ✅ Mesmo erro inesperado: ack 200 para evitar retries infinitos no cadastro
-    // Você ainda vê o erro no log e corrige sem derrubar o webhook.
-    const msg = err instanceof Error ? err.message : "unknown_error";
-    console.error("[EFI webhookrec] unexpected error (ack 200)", { msg });
-
-    return new NextResponse("200", { status: 200 });
+    const msg = err instanceof Error ? err.message : "unexpected_error";
+    console.error("[EFI webhookrec] processing error (ack 200)", { msg });
   }
+
+  return OK();
 }
