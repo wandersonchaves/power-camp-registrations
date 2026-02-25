@@ -8,7 +8,7 @@ export type Periodicidade = OpenStringUnion<
 >;
 
 export type RecStatus = OpenStringUnion<
-  "CRIADA" | "APROVADA" | "REPROVADA" | "CANCELADA"
+  "CRIADA" | "APROVADA" | "REPROVADA" | "CANCELADA" | "EXPIRADA"
 >;
 
 export type SolicRecStatus = OpenStringUnion<
@@ -16,7 +16,17 @@ export type SolicRecStatus = OpenStringUnion<
 >;
 
 export type CobrStatus = OpenStringUnion<
-  "CRIADA" | "ATIVA" | "CANCELADA" | "AGENDADA" | "EXPIRADA"
+  "CRIADA" | "ATIVA" | "CANCELADA" | "AGENDADA" | "EXPIRADA" | "CONCLUIDA"
+>;
+
+export type CobStatus = OpenStringUnion<
+  | "CRIADA"
+  | "ATIVA"
+  | "CONCLUIDA"
+  | "REMOVIDA_PELO_USUARIO_RECEBEDOR"
+  | "REMOVIDA_PELO_PSP"
+  | "EXPIRADA"
+  | "CANCELADA"
 >;
 
 export type CreateRecRequest = {
@@ -128,7 +138,6 @@ export type LocRecResponse = {
 
 export type CreateLocRecRequest = Record<string, never>;
 
-// Cobrança imediata
 export type CreateCobRequest = {
   calendario?: { expiracao?: number };
   devedor?: {
@@ -150,12 +159,19 @@ export type PatchCobrRequest = {
 
 export type CobResponse = {
   txid: string;
-  status: string;
-  valor?: { original: string };
+  status: CobStatus;
+  valor?: { original?: string };
   calendario?: { criacao?: string; expiracao?: number };
+  chave?: string;
+  solicitacaoPagador?: string;
+
   location?: string;
   loc?: { id: number; location: string; criacao?: string; tipoCob?: string };
+
   pixCopiaECola?: string;
+
+  pix?: Array<unknown>;
+
   devedor?: { cpf?: string; cnpj?: string; nome?: string };
 
   [k: string]: unknown;
