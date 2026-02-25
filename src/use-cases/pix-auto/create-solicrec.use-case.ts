@@ -1,7 +1,9 @@
+// src/use-cases/pix-auto/create-solicrec.use-case.ts
 import { pixAutoClient } from "@/infra/efi/pix-auto.client";
 import { sha256 } from "@/lib/crypto";
 import { AppError } from "@/lib/http-errors";
 import { prisma } from "@/lib/prisma";
+import { asInputJson } from "@/lib/prisma-json";
 
 type Input = {
   recurrenceId: string;
@@ -17,23 +19,23 @@ type Input = {
 export async function createSolicRecUseCase(input: Input) {
   const rec = await prisma.pixAutoRecurrence.findUnique({
     where: { id: input.recurrenceId },
+    select: { id: true, idRec: true },
   });
-  if (!rec?.idRec)
+  if (!rec?.idRec) {
     throw new AppError(
       "Recurrence not ready (missing idRec)",
       409,
       "REC_NOT_READY",
     );
+  }
+
+  const d = input.destinatario;
+  const dataExp = input.dataExpiracaoSolicitacaoISO;
 
   const idempotencyKey = sha256(
-    [
-      rec.idRec,
-      input.destinatario.cpf,
-      input.destinatario.agencia,
-      input.destinatario.conta,
-      input.destinatario.ispbParticipante,
-      input.dataExpiracaoSolicitacaoISO,
-    ].join("|"),
+    [rec.idRec, d.cpf, d.agencia, d.conta, d.ispbParticipante, dataExp].join(
+      "|",
+    ),
   );
 
   const existing = await prisma.pixAutoSolicRec.findUnique({
@@ -48,28 +50,28 @@ export async function createSolicRecUseCase(input: Input) {
       idempotencyKey,
       recurrenceId: rec.id,
       status: "CREATING",
-      dataExpiracao: new Date(input.dataExpiracaoSolicitacaoISO),
-      agencia: input.destinatario.agencia,
-      conta: input.destinatario.conta,
-      cpf: input.destinatario.cpf,
-      ispb: input.destinatario.ispbParticipante,
+      dataExpiracao: new Date(dataExp),
+      agencia: d.agencia,
+      conta: d.conta,
+      cpf: d.cpf,
+      ispb: d.ispbParticipante,
+      inputPayload: asInputJson(input),
     },
   });
 
   const resp = await pixAutoClient.solicrec.create({
     idRec: rec.idRec,
-    calendario: { dataExpiracaoSolicitacao: input.dataExpiracaoSolicitacaoISO },
-    destinatario: input.destinatario,
+    calendario: { dataExpiracaoSolicitacao: dataExp },
+    destinatario: d,
   });
 
-  const updated = await prisma.pixAutoSolicRec.update({
+  return prisma.pixAutoSolicRec.update({
     where: { id: draft.id },
     data: {
       idSolicRec: resp.idSolicRec,
-      status: resp.status ?? "CRIADA",
+      status: String(resp.status ?? "CRIADA"),
       recPayload: resp.recPayload ?? undefined,
+      payload: asInputJson(resp),
     },
   });
-
-  return updated;
 }

@@ -1,23 +1,24 @@
+// src/app/api/enrollments/journey3/route.ts
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { toAppError } from "@/lib/http-errors";
 import { createEnrollmentAndStartJourney3UseCase } from "@/use-cases/enrollment/create-enrollment-and-start-journey3.use-case";
 
+export const runtime = "nodejs";
+
 const schema = z.object({
   eventId: z.string().min(1),
   participantId: z.string().min(1),
 
-  // ✅ se você não quiser permitir time por API quando antecipada, pode remover daqui também
   teamCode: z.enum(["AGUIA", "LEAO"]).nullable().optional(),
 
-  immediateAmount: z.string().regex(/^\d{1,10}\.\d{2}$/),
-  recurringAmount: z.string().regex(/^\d{1,10}\.\d{2}$/),
+  immediateAmount: z.string().min(1),
+  recurringAmount: z.string().min(1),
 
   contrato: z.string().min(1),
   objeto: z.string().optional(),
 
-  // ✅ corrigido: agora bate com o tipo do use-case
   periodicidade: z.enum([
     "MENSAL",
     "SEMANAL",

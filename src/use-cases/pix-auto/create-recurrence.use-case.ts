@@ -1,7 +1,9 @@
+// src/use-cases/pix-auto/create-recurrence.use-case.ts
 import { pixAutoClient } from "@/infra/efi/pix-auto.client";
 import { sha256 } from "@/lib/crypto";
 import { AppError } from "@/lib/http-errors";
 import { prisma } from "@/lib/prisma";
+import { asInputJson } from "@/lib/prisma-json";
 
 type Input = {
   eventId: string;
@@ -22,25 +24,77 @@ type Input = {
   ativacaoTxid?: string;
 };
 
+function normalizeMoney(value: string): string {
+  const raw = String(value ?? "")
+    .trim()
+    .replace(",", ".");
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) {
+    throw new AppError("Invalid amount", 400, "INVALID_AMOUNT");
+  }
+  return n.toFixed(2);
+}
+
+function assertDateYYYYMMDD(v: string, field: string) {
+  const s = String(v ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    throw new AppError(`${field} must be YYYY-MM-DD`, 400, "INVALID_DATE");
+  }
+  return s;
+}
+
 export async function createRecurrenceUseCase(input: Input) {
+  const eventId = String(input.eventId ?? "").trim();
+  const participantId = String(input.participantId ?? "").trim();
+  const contrato = String(input.contrato ?? "").trim();
+
+  if (!eventId)
+    throw new AppError("eventId is required", 400, "EVENT_ID_REQUIRED");
+  if (!participantId)
+    throw new AppError(
+      "participantId is required",
+      400,
+      "PARTICIPANT_ID_REQUIRED",
+    );
+  if (!contrato)
+    throw new AppError("contrato is required", 400, "CONTRATO_REQUIRED");
+
+  const dataInicial = assertDateYYYYMMDD(input.dataInicial, "dataInicial");
+  const dataFinal = input.dataFinal
+    ? assertDateYYYYMMDD(input.dataFinal, "dataFinal")
+    : undefined;
+
+  const valorRec = normalizeMoney(input.valorRec);
+  const periodicidade = String(input.periodicidade ?? "").trim();
+  if (!periodicidade)
+    throw new AppError(
+      "periodicidade is required",
+      400,
+      "PERIODICIDADE_REQUIRED",
+    );
+
   const participant = await prisma.participant.findUnique({
-    where: { id: input.participantId },
+    where: { id: participantId },
+    select: { id: true, cpf: true, fullName: true },
   });
-  if (!participant)
+  if (!participant) {
     throw new AppError("Participant not found", 404, "PARTICIPANT_NOT_FOUND");
+  }
 
   const idempotencyKey = sha256(
     [
-      input.eventId,
-      input.participantId,
+      "REC",
+      eventId,
+      participantId,
       participant.cpf,
-      input.contrato,
-      input.dataInicial,
-      input.dataFinal ?? "",
-      input.periodicidade,
-      input.valorRec,
+      contrato,
+      dataInicial,
+      dataFinal ?? "",
+      periodicidade,
+      valorRec,
       input.locId ?? "",
       input.ativacaoTxid ?? "",
+      input.objeto ?? "",
     ].join("|"),
   );
 
@@ -51,60 +105,64 @@ export async function createRecurrenceUseCase(input: Input) {
 
   const body = {
     vinculo: {
-      contrato: input.contrato,
+      contrato,
       devedor: { cpf: participant.cpf, nome: participant.fullName },
-      objeto: input.objeto,
+      ...(input.objeto ? { objeto: input.objeto } : {}),
     },
     calendario: {
-      dataInicial: input.dataInicial,
-      dataFinal: input.dataFinal,
-      periodicidade: input.periodicidade,
+      dataInicial,
+      ...(dataFinal ? { dataFinal } : {}),
+      periodicidade,
     },
-    valor: { valorRec: input.valorRec },
+    valor: { valorRec },
+    politicaRetentativa: "NAO_PERMITE" as const,
     ...(input.locId ? { loc: input.locId } : {}),
     ...(input.ativacaoTxid
       ? { ativacao: { dadosJornada: { txid: input.ativacaoTxid } } }
       : {}),
   };
 
-  // cria placeholder (evita race)
+  // placeholder (evita race)
   const draft = await prisma.pixAutoRecurrence.upsert({
     where: { idempotencyKey },
     update: {},
     create: {
       idempotencyKey,
-      eventId: input.eventId,
-      participantId: input.participantId,
+      eventId,
+      participantId,
       status: "CREATING",
-      valorRec: input.valorRec,
-      periodicidade: input.periodicidade,
-      dataInicial: new Date(input.dataInicial),
-      dataFinal: input.dataFinal ? new Date(input.dataFinal) : null,
-      contrato: input.contrato,
-      objeto: input.objeto,
+      valorRec,
+      periodicidade,
+      dataInicial: new Date(`${dataInicial}T00:00:00.000Z`),
+      dataFinal: dataFinal ? new Date(`${dataFinal}T00:00:00.000Z`) : null,
+      contrato,
+      objeto: input.objeto ?? null,
       locId: input.locId ?? null,
       jornada: null,
       locationUrl: null,
       pixCopiaECola: null,
+      payload: asInputJson({ body }),
     },
   });
 
   const resp = await pixAutoClient.rec.create(body);
 
-  // opcional: buscar QR “copia e cola” depois do create (Jornada 2/3/4)
-  const full = await pixAutoClient.rec.get(resp.idRec);
+  // Busca QR (quando aplicável) — o client já lida com query txid quando precisar
+  const full = await pixAutoClient.rec.get(
+    resp.idRec,
+    input.ativacaoTxid ? { txid: input.ativacaoTxid } : undefined,
+  );
 
-  const updated = await prisma.pixAutoRecurrence.update({
+  return prisma.pixAutoRecurrence.update({
     where: { id: draft.id },
     data: {
       idRec: resp.idRec,
-      status: full.status ?? resp.status ?? "CRIADA",
+      status: String(full.status ?? resp.status ?? "CRIADA"),
       locId: full.loc?.id ?? draft.locId,
       locationUrl: full.loc?.location ?? draft.locationUrl,
       jornada: full.dadosQR?.jornada ?? draft.jornada,
       pixCopiaECola: full.dadosQR?.pixCopiaECola ?? draft.pixCopiaECola,
+      payload: asInputJson({ body, resp, full }),
     },
   });
-
-  return updated;
 }
