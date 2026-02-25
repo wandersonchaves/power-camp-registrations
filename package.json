@@ -24,7 +24,8 @@
     "start": "prisma migrate deploy && next start",
     "test:watch": "jest --watchAll",
     "test": "jest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:deploy": "pnpm run lint:fix && pnpm run format && pnpm run build"
   },
   "husky": {
     "hooks": {
