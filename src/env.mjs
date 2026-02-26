@@ -7,7 +7,7 @@ const zNumberFromEnv = (def) =>
     if (v === undefined || v === null) return def;
 
     const s = String(v).trim();
-    if (!s) return def; // vazio → default
+    if (!s) return def;
 
     const n = Number(s.replace(",", "."));
     return Number.isFinite(n) ? n : undefined;
