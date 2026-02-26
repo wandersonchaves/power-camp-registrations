@@ -54,8 +54,8 @@ export function getEfiHttpsAgent(): https.Agent {
     [
       "EFI HTTPS cert missing.",
       "Forneça UMA opção válida:",
-      '1) EFI_PFX_BASE64 + EFI_PASSPHRASE (pode ser vazio "")',
-      '2) EFI_PFX_PATH + EFI_PASSPHRASE (pode ser vazio "")',
+      '1) EFI_PFX_BASE64 + EFI_CERT_PASSPHRASE (pode ser vazio "")',
+      '2) EFI_PFX_PATH + EFI_CERT_PASSPHRASE (pode ser vazio "")',
       "3) EFI_CERT_PEM_PATH + EFI_CERT_KEY_PEM_PATH (EFI_CERT_PASSPHRASE opcional)",
     ].join(" "),
   );
