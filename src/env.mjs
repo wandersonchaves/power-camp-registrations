@@ -2,6 +2,17 @@
 import { createEnv } from "@t3-oss/env-nextjs";
 import { z } from "zod";
 
+const zNumberFromEnv = (def) =>
+  z.preprocess((v) => {
+    if (v === undefined || v === null) return def;
+
+    const s = String(v).trim();
+    if (!s) return def; // vazio → default
+
+    const n = Number(s.replace(",", "."));
+    return Number.isFinite(n) ? n : undefined;
+  }, z.number().default(def));
+
 export const env = createEnv({
   server: {
     APP_URL: z.string().url(),
@@ -15,7 +26,18 @@ export const env = createEnv({
     GOOGLE_SITE_VERIFICATION_ID: z.string().optional(),
 
     EFI_BASE_URL: z.string().url().optional(),
-    EFI_ENV: z.enum(["development", "homologation", "production"]).optional(),
+    EFI_ENV: z.preprocess(
+      (v) => {
+        const s = String(v ?? "")
+          .trim()
+          .toLowerCase();
+        if (s === "hmg") return "homologation";
+        if (s === "prod" || s === "prd") return "production";
+        if (s === "dev") return "development";
+        return s;
+      },
+      z.enum(["development", "homologation", "production"]),
+    ),
     EFI_CLIENT_ID: z.string().min(1),
     EFI_CLIENT_SECRET: z.string().min(1),
     EFI_PIX_KEY: z.string().min(1),
@@ -33,8 +55,8 @@ export const env = createEnv({
 
     POWERCAMP_EVENT_ID: z.string().optional(),
     POWERCAMP_OWNER_USER_ID: z.string().optional(),
-    POWERCAMP_ANTECIPADA_TOTAL: z.coerce.number().optional(),
-    POWERCAMP_LOTE_ZERO_TOTAL: z.coerce.number().optional(),
+    POWERCAMP_ANTECIPADA_TOTAL: zNumberFromEnv(0),
+    POWERCAMP_LOTE_ZERO_TOTAL: zNumberFromEnv(0),
   },
 
   runtimeEnv: {
