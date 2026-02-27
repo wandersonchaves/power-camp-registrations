@@ -176,3 +176,51 @@ export type CobResponse = {
 
   [k: string]: unknown;
 };
+
+export type EfiPagination = {
+  paginaAtual: number;
+  itensPorPagina: number;
+  quantidadeDePaginas: number;
+  quantidadeTotalDeItens: number;
+};
+
+export type CobListResponse = {
+  parametros: {
+    inicio: string;
+    fim: string;
+    paginacao: EfiPagination;
+  };
+  cobs: CobResponse[];
+};
+
+export type CobrListResponse = {
+  parametros: {
+    inicio: string;
+    fim: string;
+    paginacao: EfiPagination;
+  };
+  // na doc aparece como "cobsr" (lista de cobranças recorrentes)
+  cobsr: CobrResponse[];
+};
+
+export type CobListQuery = {
+  inicio: string; // ISO datetime
+  fim: string; // ISO datetime
+  paginaAtual?: number;
+  itensPorPagina?: number;
+  cpf?: string;
+  cnpj?: string;
+  status?: string;
+};
+
+export type CobrListQuery = {
+  inicio: string;
+  fim: string;
+  paginaAtual?: number;
+  itensPorPagina?: number;
+  idRec?: string;
+  cpf?: string;
+  cnpj?: string;
+  status?: string;
+  convenio?: string;
+};
