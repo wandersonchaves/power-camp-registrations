@@ -3,15 +3,13 @@
 import type { Prisma } from "@prisma/client";
 
 import { pixAutoClient } from "@/infra/efi/pix-auto.client";
-import type { CobListResponse, CobResponse } from "@/infra/efi/pix-auto.types";
+import type { CobListResponse, EfiCobLite } from "@/infra/efi/pix-auto.types";
 import { prisma } from "@/lib/prisma";
 import { asInputJson } from "@/lib/prisma-json";
 
 type Kind = "COB" | "COBR" | "REC";
 
 type EfiPixLite = { horario?: string };
-
-type EfiCobLite = Pick<CobResponse, "txid" | "status" | "pix" | "calendario">;
 
 function parseArg(name: string): string | undefined {
   const prefix = `--${name}=`;
@@ -84,8 +82,8 @@ async function reconcileCob(params: {
     const res: CobListResponse = await pixAutoClient.cob.list({
       inicio: params.startIso,
       fim: params.endIso,
-      paginaAtual,
-      itensPorPagina: params.itensPorPagina,
+      "paginacao.paginaAtual": paginaAtual,
+      "paginacao.itensPorPagina": params.itensPorPagina,
     });
 
     const cobs: EfiCobLite[] = res.cobs ?? [];
@@ -118,8 +116,8 @@ async function reconcileCob(params: {
       const txid = String(cob.txid ?? "").trim();
       if (!txid) continue;
 
-      const status = upper(cob.status);
-      const pixArr = extractPixLite(cob.pix); // ✅ aqui está a correção
+      const status = upper(cob.status); // cob.status é CobStatus | string | undefined
+      const pixArr = extractPixLite(cob.pix);
 
       const attempt = byTxid.get(txid);
       if (!attempt) {
