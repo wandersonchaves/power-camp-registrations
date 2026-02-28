@@ -56,8 +56,8 @@ export async function reconcileRetroactivePayments(params: Params) {
       const data = await pixAutoClient.cob.list({
         inicio: params.inicioISO,
         fim: params.fimISO,
-        paginaAtual: page,
-        itensPorPagina: size,
+        "paginacao.paginaAtual": page,
+        "paginacao.itensPorPagina": size,
       });
 
       return {
@@ -144,8 +144,8 @@ export async function reconcileRetroactivePayments(params: Params) {
       const data = await pixAutoClient.cobr.list({
         inicio: params.inicioISO,
         fim: params.fimISO,
-        paginaAtual: page,
-        itensPorPagina: size,
+        "paginacao.paginaAtual": page,
+        "paginacao.itensPorPagina": size,
         ...(params.idRec ? { idRec: params.idRec } : {}),
       });
 
