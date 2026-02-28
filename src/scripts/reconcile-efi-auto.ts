@@ -3,18 +3,15 @@
 import type { Prisma } from "@prisma/client";
 
 import { pixAutoClient } from "@/infra/efi/pix-auto.client";
+import { extractPixLite } from "@/infra/efi/pix-auto.guards";
 import type {
-  CobListResponse,
-  CobResponse,
   CobrListResponse,
   CobrResponse,
+  EfiCobLite,
 } from "@/infra/efi/pix-auto.types";
 import { prisma } from "@/lib/prisma";
 import { asInputJson } from "@/lib/prisma-json";
 
-type EfiPixLite = { horario?: string };
-
-type EfiCobLite = Pick<CobResponse, "txid" | "pix">;
 type EfiCobrLite = Pick<CobrResponse, "txid" | "status" | "pix">;
 
 function daysAgo(days: number) {
@@ -27,23 +24,6 @@ function upper(v: unknown) {
   return String(v ?? "")
     .toUpperCase()
     .trim();
-}
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return !!v && typeof v === "object" && !Array.isArray(v);
-}
-
-function extractPixLite(pix: unknown): EfiPixLite[] {
-  if (!Array.isArray(pix)) return [];
-
-  const out: EfiPixLite[] = [];
-  for (const item of pix) {
-    if (!isRecord(item)) continue;
-    const horario =
-      typeof item.horario === "string" ? String(item.horario) : undefined;
-    out.push({ horario });
-  }
-  return out;
 }
 
 /**
@@ -68,16 +48,21 @@ function getCobrsFromListResponse(res: CobrListResponse): EfiCobrLite[] {
   return [];
 }
 
+function toEfiIso(d: Date) {
+  // remove milissegundos: 2026-02-28T09:47:30Z
+  return d.toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
 async function reconcileCob(startIso: string, endIso: string) {
   let paginaAtual = 0;
   const itensPorPagina = 100;
 
   for (;;) {
-    const res: CobListResponse = await pixAutoClient.cob.list({
-      inicio: startIso,
-      fim: endIso,
-      paginaAtual,
-      itensPorPagina,
+    const res = await pixAutoClient.cob.list({
+      inicio: toEfiIso(new Date(startIso)),
+      fim: toEfiIso(new Date(endIso)),
+      "paginacao.paginaAtual": paginaAtual,
+      "paginacao.itensPorPagina": itensPorPagina,
     });
 
     const cobs: EfiCobLite[] = res.cobs ?? [];
@@ -151,8 +136,8 @@ async function reconcileCobr(startIso: string, endIso: string) {
     const res: CobrListResponse = await pixAutoClient.cobr.list({
       inicio: startIso,
       fim: endIso,
-      paginaAtual,
-      itensPorPagina,
+      "paginacao.paginaAtual": paginaAtual,
+      "paginacao.itensPorPagina": itensPorPagina,
     });
 
     const cobrs = getCobrsFromListResponse(res);
@@ -207,7 +192,11 @@ async function main() {
   console.log(`Window: ${start} → ${end}`);
 
   await reconcileCob(start, end);
-  await reconcileCobr(start, end);
+  try {
+    await reconcileCobr(start, end);
+  } catch (err) {
+    console.error("[COBR] skipped due to error", err);
+  }
 
   console.log("==== EFI WEEKLY RECONCILIATION DONE ====");
 }
