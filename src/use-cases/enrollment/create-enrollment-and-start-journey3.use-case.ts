@@ -95,11 +95,6 @@ function extractCobPixFromAttemptPayload(
   return typeof pix === "string" ? pix : null;
 }
 
-/**
- * Contrato Efí: 8 dígitos.
- * Se input já for 8 dígitos, usa.
- * Senão, gera determinístico com hash (e garante 8 dígitos).
- */
 function makeContratoEfi(params: {
   inputContrato: string | null | undefined;
   enrollmentId: string;
@@ -124,157 +119,51 @@ function makeContratoEfi(params: {
 }
 
 /**
- * Gate curto e dedupado:
- * - Não confirma ATIVA (no fluxo puro), apenas dá tempo de consistência eventual.
- * - Evita muitos sleeps e logs repetidos.
+ * ✅ Gate “ativável no /rec”:
+ * - /rec tem visão diferente do /cob; então exigimos:
+ *   - status ATIVA
+ *   - idade mínima (ex: 2s)
+ *   - 2 leituras consecutivas ATIVA
  */
-async function waitCobPropagationGate(txid: string) {
+async function waitCobActivatableForRec(txid: string, budgetMs: number) {
   await waitForCobActive(txid, {
-    label: "[EFI COB] propagation",
-    maxAttempts: 3,
-    baseDelayMs: 200,
-    maxDelayMs: 900,
-    maxTotalMs: 3500,
-    dedupeTtlMs: 10_000,
-    acceptPaidAsUsable: false, // compat (ignorado)
+    label: "[EFI J3] wait-cob-activatable-for-rec",
+    maxTotalMs: budgetMs,
+
+    maxAttempts: 12,
+    baseDelayMs: 300,
+    maxDelayMs: 3_000,
+    multiplier: 1.5,
+    jitterMs: 250,
+
+    dedupeTtlMs: 8_000,
+    getCacheTtlMs: 1_250,
+
+    minCobAgeMs: 2_500, // um pouco maior do que você vinha usando
+    requireConsecutiveActiveReads: 2,
+    acceptPaidAsUsable: false,
   });
 }
 
 /**
- * Jornada 3 “pura” (locrec -> cob -> rec -> rec.get)
- * - inclui abort cedo (COB CONCLUIDA/EXPIRADA/etc)
- * - inclui retries com budget + tratamento de 500
- * - usa cob.getCached() apenas quando “txid not active”
+ * ✅ Tenta criar REC usando um txid específico.
+ * Se a Efí disser "txid não está ativa", a decisão de “trocar o txid” fica no caller.
  */
-// src/use-cases/enrollment/create-enrollment-and-start-journey3.use-case.ts
-async function startEfiJourney3Pure(params: {
-  pixKey: string;
+async function tryCreateRecWithTxid(params: {
+  txid: string;
+  locId: number;
   participant: { cpf: string; fullName: string };
-  immediateAmount: string;
-  recurringAmount: string;
   contrato: string;
   objeto?: string | null;
   periodicidade: Input["periodicidade"];
   dataInicial: string;
   dataFinal?: string;
-  solicitacaoPagador: string;
-
-  // budgets/retries
-  recBudgetMs?: number;
-  maxRecAttempts?: number;
-
-  // opcional: tempo máximo para COB virar ATIVA (consistência eventual)
-  cobActiveBudgetMs?: number;
+  recurringAmount: string;
+  recAttempts: number;
+  recBudgetMs: number;
 }) {
-  const expSeconds = 3600;
-
-  const maxRecAttempts = params.maxRecAttempts ?? 6;
-  const recBudgetMs = params.recBudgetMs ?? 12_000;
-
-  const cobActiveBudgetMs = params.cobActiveBudgetMs ?? 18_000;
-
-  const nowIso = () => new Date().toISOString();
-
-  async function sleep(ms: number) {
-    return new Promise((r) => setTimeout(r, ms));
-  }
-
-  /**
-   * Aguarda a COB ficar ATIVA (ou falha cedo se entrar em status terminal).
-   * Isso evita “martelar” /v2/rec enquanto o txid ainda não propagou.
-   */
-  async function waitUntilCobActive(txid: string) {
-    const start = Date.now();
-    let attempt = 0;
-
-    while (Date.now() - start < cobActiveBudgetMs) {
-      attempt += 1;
-
-      const cobNow = await pixAutoClient.cob.getCached(txid, {
-        dedupeTtlMs: 1200,
-      });
-
-      if (pixAutoClient.errors.cob.isTerminalNotUsableStatus(cobNow.status)) {
-        throw new AppError(
-          `A cobrança (txid) está ${String(
-            cobNow.status,
-          )} e não pode ser usada para ativação na Jornada 3.
-Crie uma nova cobrança e NÃO efetue o pagamento antes de criar a recorrência.
-(Em homologação, valores até R$10 podem concluir automaticamente.)`,
-          409,
-          "EFI_J3_TXID_NOT_USABLE",
-          { txid, cobStatus: cobNow.status },
-        );
-      }
-
-      const status = String(cobNow.status ?? "").toUpperCase();
-      if (status === "ATIVA") return;
-
-      const backoffMs =
-        Math.min(2600, 250 + attempt * 380) + Math.floor(Math.random() * 220);
-
-      log("info", "[EFI COB] wait-until-active", {
-        ts: nowIso(),
-        txid,
-        attempt,
-        cobStatus: cobNow.status,
-        sleepMs: backoffMs,
-      });
-
-      await sleep(backoffMs);
-    }
-
-    throw new AppError(
-      "A cobrança (txid) não ficou ATIVA dentro do tempo limite para ativação da Jornada 3.",
-      502,
-      "EFI_J3_COB_NOT_ACTIVE_TIMEOUT",
-      { txid, budgetMs: cobActiveBudgetMs },
-    );
-  }
-
-  // 1) locrec
-  let locrec = await pixAutoClient.locrec.create();
-
-  // 2) cob
-  const cob = await pixAutoClient.cob.create({
-    calendario: { expiracao: expSeconds },
-    devedor: { cpf: params.participant.cpf, nome: params.participant.fullName },
-    valor: { original: params.immediateAmount },
-    chave: params.pixKey,
-    ...(params.solicitacaoPagador
-      ? { solicitacaoPagador: params.solicitacaoPagador }
-      : {}),
-  });
-
-  const txid = String(cob.txid ?? "").trim();
-  if (!txid) {
-    throw new AppError(
-      "EFI não retornou txid ao criar COB.",
-      502,
-      "EFI_COB_MISSING_TXID",
-      cob,
-    );
-  }
-
-  // Fail-fast se a própria resposta já veio em status terminal
-  if (pixAutoClient.errors.cob.isTerminalNotUsableStatus(cob.status)) {
-    throw new AppError(
-      `A cobrança (txid) está ${String(
-        cob.status,
-      )}. O endpoint /v2/rec exige txid ATIVA para ativação na Jornada 3.
-Crie uma nova cobrança e NÃO efetue o pagamento antes de criar a recorrência.
-(Em homologação, valores até R$10 podem concluir automaticamente.)`,
-      409,
-      "EFI_J3_TXID_NOT_USABLE",
-      { txid, cobStatus: cob.status },
-    );
-  }
-
-  // 3) Gate por condição: espera a COB ficar ATIVA (melhor prática vs só sleep)
-  await waitUntilCobActive(txid);
-
-  // 4) propagation gate curto extra (mantém seu comportamento existente, mas agora é redundância leve)
-  await waitCobPropagationGate(txid);
+  const start = Date.now();
+  let serverErrorStreak = 0;
 
   const recBodyBase = {
     vinculo: {
@@ -294,106 +183,67 @@ Crie uma nova cobrança e NÃO efetue o pagamento antes de criar a recorrência.
     politicaRetentativa: "NAO_PERMITE" as const,
   };
 
-  const start = Date.now();
-  let rec: { idRec: string } | null = null;
-
-  // “circuit breaker” simples para 5xx
-  let serverErrorStreak = 0;
-
-  for (let attemptN = 1; attemptN <= maxRecAttempts; attemptN++) {
-    if (Date.now() - start > recBudgetMs) break;
+  for (let attemptN = 1; attemptN <= params.recAttempts; attemptN++) {
+    const elapsed = Date.now() - start;
+    if (elapsed > params.recBudgetMs) break;
 
     try {
-      rec = await pixAutoClient.rec.create({
+      const rec = await pixAutoClient.rec.create({
         ...recBodyBase,
-        loc: locrec.id,
-        ativacao: { dadosJornada: { txid } },
+        loc: params.locId,
+        ativacao: { dadosJornada: { txid: params.txid } },
       });
-      break;
+
+      const recGet = await pixAutoClient.rec.get(rec.idRec, {
+        txid: params.txid,
+      });
+      return { rec, recGet };
     } catch (err) {
-      // locrec reutilizado
       if (pixAutoClient.errors.isRecLocAlreadyUsed(err)) {
-        locrec = await pixAutoClient.locrec.create();
-        continue;
+        // esse "try" não troca loc aqui; quem chama troca loc/txid em bloco
+        throw new AppError(
+          "locrec já foi utilizado. Recrie a loc e tente novamente.",
+          409,
+          "EFI_REC_LOC_ALREADY_USED",
+          { txid: params.txid, locId: params.locId },
+        );
       }
 
-      // txid não está ativa no /rec (consistência eventual entre serviços)
       if (pixAutoClient.errors.isRecActivationTxidNotActive(err)) {
-        const cobNow = await pixAutoClient.cob.getCached(txid, {
-          dedupeTtlMs: 1200,
-        });
-
-        if (pixAutoClient.errors.cob.isTerminalNotUsableStatus(cobNow.status)) {
-          throw new AppError(
-            `A cobrança (txid) ficou ${String(
-              cobNow.status,
-            )} enquanto tentávamos criar a recorrência.
-O /v2/rec exige txid ATIVA. Gere uma nova Jornada 3 e crie a recorrência antes do pagamento.`,
-            409,
-            "EFI_J3_TXID_BECAME_NOT_USABLE",
-            { txid, cobStatus: cobNow.status },
-          );
-        }
-
-        // Backoff + gate dedupado (não “martela”)
         const backoffMs =
-          Math.min(3200, 450 + attemptN * 520) +
-          Math.floor(Math.random() * 220);
+          Math.min(4_500, 900 + attemptN * 850) +
+          Math.floor(Math.random() * 350);
 
-        log("info", "[EFI REC] txid-not-active backoff", {
-          ts: nowIso(),
-          txid,
+        log("info", "[EFI REC] txid-not-active", {
+          txid: params.txid,
           attempt: attemptN,
-          cobStatus: cobNow.status,
           sleepMs: backoffMs,
         });
 
-        await waitForCobActive(txid, {
-          label: "[EFI REC] txid-not-active backoff",
-          maxAttempts: 1,
-          baseDelayMs: backoffMs,
-          maxDelayMs: backoffMs,
-          multiplier: 1.0,
-          jitterMs: 0,
-          quiet: true,
-          maxTotalMs: backoffMs + 25,
-          dedupeTtlMs: Math.min(1500, backoffMs),
-          acceptPaidAsUsable: false, // compat (ignorado)
-        });
-
+        await new Promise((r) => setTimeout(r, backoffMs));
         serverErrorStreak = 0;
         continue;
       }
 
-      // 5xx ao criar recorrência
       if (pixAutoClient.errors.isRecInternalServerError(err)) {
         serverErrorStreak += 1;
-
         if (serverErrorStreak >= 2) {
           throw new AppError(
-            "Efí retornou erro interno (5xx) ao criar recorrência repetidamente. Tente novamente em instantes (evita martelar o PSP).",
+            "Efí retornou erro interno (5xx) repetidamente ao criar recorrência.",
             502,
             "EFI_REC_SERVER_ERROR",
-            { txid, streak: serverErrorStreak },
+            { txid: params.txid, streak: serverErrorStreak },
           );
         }
 
         const backoffMs =
-          Math.min(2400, 500 + attemptN * 550) +
-          Math.floor(Math.random() * 260);
+          Math.min(3_500, 700 + attemptN * 600) +
+          Math.floor(Math.random() * 300);
 
-        log("warn", "[EFI REC] server-error backoff", {
-          ts: nowIso(),
-          txid,
-          attempt: attemptN,
-          sleepMs: backoffMs,
-        });
-
-        await sleep(backoffMs);
+        await new Promise((r) => setTimeout(r, backoffMs));
         continue;
       }
 
-      // Contrato já tem recorrência ativa
       if (pixAutoClient.errors.isContratoAlreadyHasActiveRecurrence(err)) {
         throw new AppError(
           "Contrato já possui recorrência ativa na Efí. Use outro contrato ou cancele a recorrência existente.",
@@ -403,13 +253,12 @@ O /v2/rec exige txid ATIVA. Gere uma nova Jornada 3 e crie a recorrência antes 
         );
       }
 
-      // txid expirou
       if (pixAutoClient.errors.isRecTxidExpired(err)) {
         throw new AppError(
-          "A cobrança imediata (txid) expirou durante a criação da recorrência. Inicie uma nova Jornada 3.",
+          "A cobrança imediata (txid) expirou durante a criação da recorrência.",
           409,
           "EFI_J3_TXID_EXPIRED",
-          { txid },
+          { txid: params.txid },
         );
       }
 
@@ -417,29 +266,134 @@ O /v2/rec exige txid ATIVA. Gere uma nova Jornada 3 e crie a recorrência antes 
     }
   }
 
-  if (!rec?.idRec) {
-    const cobNow = await pixAutoClient.cob.getCached(txid, {
-      dedupeTtlMs: 1200,
+  return null;
+}
+
+/**
+ * ✅ Jornada 3 com fallback:
+ * - cria locrec + cob + espera “ativável no /rec”
+ * - tenta criar rec
+ * - se /rec insistir em “txid não está ativa” por muito tempo:
+ *   -> cria NOVA cob (novo txid) e tenta de novo (2 ou 3 ciclos)
+ */
+async function startEfiJourney3WithFallback(params: {
+  pixKey: string;
+  participant: { cpf: string; fullName: string };
+  immediateAmount: string;
+  recurringAmount: string;
+  contrato: string;
+  objeto?: string | null;
+  periodicidade: Input["periodicidade"];
+  dataInicial: string;
+  dataFinal?: string;
+  solicitacaoPagador: string;
+
+  cobCycles?: number; // quantas vezes podemos “trocar o txid”
+  cobActivatableBudgetMs?: number;
+
+  recAttempts?: number;
+  recBudgetMs?: number;
+}) {
+  const expSeconds = 3600;
+
+  const cobCycles = params.cobCycles ?? 3;
+  const cobActivatableBudgetMs = params.cobActivatableBudgetMs ?? 25_000;
+
+  const recAttempts = params.recAttempts ?? 8;
+  const recBudgetMs = params.recBudgetMs ?? 25_000;
+
+  let lastCob: CobResponse | null = null;
+  let lastLocrec: { id: number; location?: string | null } | null = null;
+
+  for (let cycle = 1; cycle <= cobCycles; cycle++) {
+    // 1) locrec
+    const locrec = await pixAutoClient.locrec.create();
+    lastLocrec = { id: locrec.id, location: locrec.location ?? null };
+
+    // 2) cob
+    const cob = await pixAutoClient.cob.create({
+      calendario: { expiracao: expSeconds },
+      devedor: {
+        cpf: params.participant.cpf,
+        nome: params.participant.fullName,
+      },
+      valor: { original: params.immediateAmount },
+      chave: params.pixKey,
+      ...(params.solicitacaoPagador
+        ? { solicitacaoPagador: params.solicitacaoPagador }
+        : {}),
+    });
+    lastCob = cob;
+
+    const txid = String(cob.txid ?? "").trim();
+    if (!txid) {
+      throw new AppError(
+        "EFI não retornou txid ao criar COB.",
+        502,
+        "EFI_COB_MISSING_TXID",
+        cob,
+      );
+    }
+
+    if (pixAutoClient.errors.cob.isTerminalNotUsableStatus(cob.status)) {
+      throw new AppError(
+        `A cobrança (txid) está ${String(cob.status)} e não pode ser usada para Jornada 3.`,
+        409,
+        "EFI_J3_TXID_NOT_USABLE",
+        { txid, cobStatus: cob.status },
+      );
+    }
+
+    log("info", "[EFI J3] cycle created cob/loc", {
+      cycle,
+      cobCycles,
+      txid,
+      locId: locrec.id,
     });
 
-    throw new AppError(
-      "Falha ao criar recorrência: budget atingido ou a Efí não aceitou o txid como ATIVA no /v2/rec.",
-      502,
-      "EFI_REC_CREATE_BUDGET_EXCEEDED",
-      {
-        txid,
-        locId: locrec.id,
-        recBudgetMs,
-        maxRecAttempts,
-        cobStatus: cobNow.status,
-      },
-    );
+    // 3) aguarda o txid ficar “ativável” para o /rec
+    await waitCobActivatableForRec(txid, cobActivatableBudgetMs);
+
+    // 4) tenta criar rec com esse txid
+    const result = await tryCreateRecWithTxid({
+      txid,
+      locId: locrec.id,
+      participant: params.participant,
+      contrato: params.contrato,
+      objeto: params.objeto ?? null,
+      periodicidade: params.periodicidade,
+      dataInicial: params.dataInicial,
+      dataFinal: params.dataFinal,
+      recurringAmount: params.recurringAmount,
+      recAttempts,
+      recBudgetMs,
+    });
+
+    if (result?.rec?.idRec) {
+      return { txid, cob, locrec, rec: result.rec, recGet: result.recGet };
+    }
+
+    // Se chegou aqui: estourou budget/tentativas com "txid-not-active" (ou simplesmente não convergiu)
+    // -> próximo ciclo cria novo txid
+    log("warn", "[EFI J3] rec did not converge; rotating txid", {
+      cycle,
+      cobCycles,
+      txid,
+      note: "creating a new cob/txid",
+    });
   }
 
-  // 5) rec.get
-  const recGet = await pixAutoClient.rec.get(rec.idRec, { txid });
-
-  return { txid, cob, locrec, rec, recGet };
+  throw new AppError(
+    "Falha ao criar recorrência: Efí não aceitou o txid como ATIVA no /v2/rec mesmo após rotação de txid.",
+    502,
+    "EFI_REC_CREATE_BUDGET_EXCEEDED",
+    {
+      note: "rotated-txid-exhausted",
+      lastTxid: String(lastCob?.txid ?? ""),
+      lastCobStatus: String(lastCob?.status ?? ""),
+      lastLocId: lastLocrec?.id ?? null,
+    },
+  );
 }
 
 export async function createEnrollmentAndStartJourney3UseCase(
@@ -636,27 +590,37 @@ export async function createEnrollmentAndStartJourney3UseCase(
     });
   };
 
-  // ===== Jornada 3 “pura” consolidada =====
+  // ===== Jornada 3 com fallback de rotação de txid =====
   const solicitacaoPagador = input.solicitacaoPagador ?? "Pagamento inicial";
 
-  const { txid, cob, locrec, rec, recGet } = await startEfiJourney3Pure({
-    pixKey,
-    participant: { cpf: participant.cpf, fullName: participant.fullName },
-    immediateAmount,
-    recurringAmount,
-    contrato,
-    objeto: input.objeto ?? null,
-    periodicidade: input.periodicidade,
-    dataInicial: input.dataInicial,
-    dataFinal: input.dataFinal,
-    solicitacaoPagador,
-    recBudgetMs: 12_000,
-    maxRecAttempts: 6,
-  });
+  const { txid, cob, locrec, rec, recGet } = await startEfiJourney3WithFallback(
+    {
+      pixKey,
+      participant: { cpf: participant.cpf, fullName: participant.fullName },
+      immediateAmount,
+      recurringAmount,
+      contrato,
+      objeto: input.objeto ?? null,
+      periodicidade: input.periodicidade,
+      dataInicial: input.dataInicial,
+      dataFinal: input.dataFinal,
+      solicitacaoPagador,
+
+      cobCycles: 3,
+      cobActivatableBudgetMs: 25_000,
+
+      recAttempts: 8,
+      recBudgetMs: 25_000,
+    },
+  );
+  console.log("🚀 ~ createEnrollmentAndStartJourney3UseCase ~ recGet:", recGet);
+  console.log("🚀 ~ createEnrollmentAndStartJourney3UseCase ~ rec:", rec);
+  console.log("🚀 ~ createEnrollmentAndStartJourney3UseCase ~ locrec:", locrec);
+  console.log("🚀 ~ createEnrollmentAndStartJourney3UseCase ~ cob:", cob);
+  console.log("🚀 ~ createEnrollmentAndStartJourney3UseCase ~ txid:", txid);
 
   await persistAttempt({ txid, cob, locrec, rec, recGet });
 
-  // Persistência da recorrência (transação curta)
   await prisma.$transaction(async (tx) => {
     const recIdempotencyKey = sha256(
       [
