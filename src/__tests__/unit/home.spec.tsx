@@ -1,15 +1,14 @@
-import { render, screen } from "@testing-library/react";
+import { redirect } from "next/navigation";
 
-import Home from "@/app/page";
+import HomePage from "@/app/page";
+
+jest.mock("next/navigation", () => ({
+  redirect: jest.fn(),
+}));
 
 describe("Homepage", () => {
-  it("renders the Components", () => {
-    render(<Home />);
-
-    const heading = screen.getByText("Next.js power template", {
-      selector: "h1",
-    });
-
-    expect(heading).toBeInTheDocument();
+  it("redirects to /enroll", () => {
+    HomePage();
+    expect(redirect).toHaveBeenCalledWith("/enroll");
   });
 });

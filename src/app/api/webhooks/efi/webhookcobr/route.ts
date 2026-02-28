@@ -1,93 +1,100 @@
-import type { Prisma } from "@prisma/client";
-import { NextResponse } from "next/server";
-import { z } from "zod";
+import { type NextRequest, NextResponse } from "next/server";
 
 import {
-  EfiWebhookBaseSchema,
-  EfiWebhookTestSchema,
-  normalizePaymentEvent,
-} from "@/infra/efi/webhooks/efi-webhook.schemas";
-import { toAppError } from "@/lib/http-errors";
-import { confirmInitialPaymentAndAwardUseCase } from "@/use-cases/race/confirm-initial-payment-and-award.use-case";
-import { persistWebhookEvent } from "@/use-cases/webhooks/persist-webhook-event.use-case";
+  assertEfiWebhookAllowed,
+  sha256Json,
+} from "@/infra/efi/webhooks/efi-webhook.guard";
+import { prisma } from "@/lib/prisma";
+import { asInputJson } from "@/lib/prisma-json";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-function isJsonValue(value: unknown): value is Prisma.JsonValue {
-  // Zod já garante JSON serializável quando vem de req.json()
-  // mas mantemos check simples
-  return value !== undefined;
-}
+const OK = () => new NextResponse("200", { status: 200 });
 
-export async function POST(req: Request) {
+async function tryReadJson(req: NextRequest): Promise<unknown | null> {
   try {
-    const secret = req.headers.get("x-webhook-secret");
-    if (
-      process.env.WEBHOOK_SHARED_SECRET &&
-      secret !== process.env.WEBHOOK_SHARED_SECRET
-    ) {
-      return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-    }
-
-    const raw: unknown = await req.json();
-    if (!isJsonValue(raw)) {
-      return NextResponse.json({ ok: true, ignored: true }, { status: 200 });
-    }
-
-    // Persistir sempre (auditoria)
-    await persistWebhookEvent({ kind: "webhookcobr", payload: raw });
-
-    // Primeiro tenta parse como “base”
-    const parsedBase = EfiWebhookBaseSchema.safeParse(raw);
-    if (parsedBase.success) {
-      const evt = normalizePaymentEvent(parsedBase.data);
-
-      if (evt.isPaid) {
-        const result = await confirmInitialPaymentAndAwardUseCase({
-          txid: evt.txid,
-          paidAt: evt.paidAt,
-          rawPayload: raw,
-        });
-
-        return NextResponse.json(
-          { ...result, processed: true },
-          { status: 200 },
-        );
-      }
-
-      return NextResponse.json(
-        { processed: false, status: evt.status },
-        { status: 200 },
-      );
-    }
-
-    // Se não for base, tenta parse como “teste”
-    const parsedTest = EfiWebhookTestSchema.safeParse(raw);
-    if (parsedTest.success) {
-      return NextResponse.json({ ok: true, test: true }, { status: 200 });
-    }
-
-    // Se não bater em nenhum, retorna ok mas marca como desconhecido
-    return NextResponse.json(
-      {
-        ok: true,
-        unknownPayload: true,
-        errors: flattenZodErrors(parsedBase.error),
-      },
-      { status: 200 },
-    );
-  } catch (e) {
-    const err = toAppError(e);
-    return NextResponse.json(
-      { error: err.code, message: err.message },
-      { status: err.statusCode },
-    );
+    const text = await req.text();
+    if (!text?.trim()) return null;
+    return JSON.parse(text);
+  } catch {
+    return null;
   }
 }
 
-function flattenZodErrors(error: z.ZodError) {
-  return error.issues.map((i) => ({
-    path: i.path.join("."),
-    message: i.message,
-  }));
+async function processCobrWebhook(params: {
+  kind: string;
+  externalId: string;
+  payload: unknown;
+}) {
+  const { kind, externalId, payload } = params;
+
+  const created = await prisma.efiWebhookEvent.upsert({
+    where: { kind_externalId: { kind, externalId } },
+    update: {},
+    create: { kind, externalId, payload: asInputJson(payload) },
+    select: { id: true, processedAt: true },
+  });
+
+  if (created.processedAt) return;
+
+  // ✅ TODO: quando tiver o shape do callback, atualize PixAutoCobr.status etc.
+  await prisma.efiWebhookEvent.update({
+    where: { id: created.id },
+    data: { processedAt: new Date() },
+  });
+}
+
+/**
+ * ✅ GET/HEAD: ping/validação de acessibilidade
+ */
+export async function GET() {
+  return OK();
+}
+
+export async function HEAD() {
+  return OK();
+}
+
+/**
+ * ✅ POST: webhook real (ou teste)
+ * Regras:
+ * - ACK 200 SEMPRE (evita erro “URL respondeu 401” no cadastro)
+ * - Só processa se passar no guard
+ */
+export async function POST(req: NextRequest) {
+  let allowed = false;
+
+  try {
+    assertEfiWebhookAllowed(req);
+    allowed = true;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "guard_failed";
+    console.error("[EFI webhookcobr] unauthorized (ack only)", {
+      msg,
+      path: req.nextUrl.pathname,
+    });
+    allowed = false;
+  }
+
+  const payload = await tryReadJson(req);
+
+  // teste/ping sem body → ACK
+  if (!payload) return OK();
+
+  // não autorizado → ACK sem processar
+  if (!allowed) return OK();
+
+  try {
+    await processCobrWebhook({
+      kind: "webhookcobr",
+      externalId: sha256Json(payload),
+      payload,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "unexpected_error";
+    console.error("[EFI webhookcobr] processing error (ack 200)", { msg });
+  }
+
+  return OK();
 }

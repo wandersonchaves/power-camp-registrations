@@ -14,7 +14,6 @@ async function main() {
       data: {
         name: "PowerCamp 2027",
         year: 2027,
-        // se existir no seu schema; se não existir, remova
         isActive: true,
       },
     }));

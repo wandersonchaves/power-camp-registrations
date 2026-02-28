@@ -7,8 +7,8 @@ type EfiEnv = "PROD" | "SANDBOX";
  * ✅ EFI Config (Railway-friendly + Local-friendly)
  *
  * Prioridade de certificado (nessa ordem):
- *  1) PFX Base64 (Railway / env)  -> EFI_PFX_BASE64 + EFI_PASSPHRASE (pode ser "")
- *  2) PFX path (local/VM)         -> EFI_PFX_PATH + EFI_PASSPHRASE (pode ser "")
+ *  1) PFX Base64 (Railway / env)  -> EFI_PFX_BASE64 + EFI_CERT_PASSPHRASE (pode ser "")
+ *  2) PFX path (local/VM)         -> EFI_PFX_PATH + EFI_CERT_PASSPHRASE (pode ser "")
  *  3) PEM cert/key (local/legado) -> EFI_CERT_PEM_PATH + EFI_CERT_KEY_PEM_PATH (+ EFI_CERT_PASSPHRASE opcional)
  *
  * Base URL (Pix API):
@@ -169,7 +169,7 @@ export function getEfiConfig(): EfiConfig {
 
   // Passphrase (PFX) - pode ser ""
   const passphrase =
-    optionalRaw("EFI_PASSPHRASE") ?? optionalRaw("EFI_P12_PASSPHRASE");
+    optionalRaw("EFI_CERT_PASSPHRASE") ?? optionalRaw("EFI_P12_PASSPHRASE");
 
   if (missing.length) {
     throw new Error(
@@ -186,8 +186,8 @@ export function getEfiConfig(): EfiConfig {
       [
         "Certificado EFI não encontrado.",
         "Defina UMA das opções:",
-        '- EFI_PFX_BASE64 + EFI_PASSPHRASE (pode ser vazio "")',
-        '- EFI_PFX_PATH + EFI_PASSPHRASE (pode ser vazio "")',
+        '- EFI_PFX_BASE64 + EFI_CERT_PASSPHRASE (pode ser vazio "")',
+        '- EFI_PFX_PATH + EFI_CERT_PASSPHRASE (pode ser vazio "")',
         "- EFI_CERT_PEM_PATH + EFI_CERT_KEY_PEM_PATH (EFI_CERT_PASSPHRASE opcional)",
       ].join("\n"),
     );
@@ -208,7 +208,7 @@ export function getEfiConfig(): EfiConfig {
     // exige existir (pode ser "")
     if (passphrase === undefined) {
       throw new Error(
-        'EFI_PASSPHRASE não definido. Ele pode ser vazio "", mas precisa existir quando usar EFI_PFX_BASE64.',
+        'EFI_CERT_PASSPHRASE não definido. Ele pode ser vazio "", mas precisa existir quando usar EFI_PFX_BASE64.',
       );
     }
 
@@ -227,7 +227,7 @@ export function getEfiConfig(): EfiConfig {
   if (hasPfxPath) {
     if (passphrase === undefined) {
       throw new Error(
-        'EFI_PASSPHRASE não definido. Ele pode ser vazio "", mas precisa existir quando usar EFI_PFX_PATH.',
+        'EFI_CERT_PASSPHRASE não definido. Ele pode ser vazio "", mas precisa existir quando usar EFI_PFX_PATH.',
       );
     }
 
