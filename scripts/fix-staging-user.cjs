@@ -23,7 +23,6 @@ async function main() {
     return;
   }
 
-  // Descobrir “dependências” antes (pra você enxergar o impacto)
   const counts = await prisma.$transaction([
     prisma.session.count({ where: { userId: user.id } }),
     prisma.account.count({ where: { userId: user.id } }),

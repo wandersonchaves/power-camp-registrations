@@ -14,14 +14,20 @@
     "dev": "prisma generate && next dev --turbo",
     "e2e:ui": "playwright test --ui",
     "e2e": "playwright test",
-    "format": "prettier --write .",
     "format:check": "prettier --check \"**/*.{ts,tsx,mdx}\" --cache",
     "format:write": "prettier --write \"**/*.{ts,tsx,mdx}\" --cache",
-    "lint": "eslint . --ext .ts,.tsx",
+    "format": "prettier --write .",
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
+    "lint": "eslint . --ext .ts,.tsx",
     "prepare": "husky",
     "preview": "next build && next start",
+    "reconcile:efi:auto": "tsx src/scripts/reconcile-efi-auto.ts",
+    "reconcile:efi:cobrs": "tsx src/scripts/reconcile-efi-payments.ts --kind=COBR",
+    "reconcile:efi:cobs": "tsx src/scripts/reconcile-efi-payments.ts --kind=COB",
+    "reconcile:efi:recs": "tsx src/scripts/reconcile-efi-payments.ts --kind=REC",
+    "reconcile:efi": "tsx src/scripts/reconcile-efi-payments.ts",
     "start": "prisma migrate deploy && next start",
+    "test:deploy": "pnpm run lint:fix && pnpm run format && pnpm run build",
     "test:watch": "jest --watchAll",
     "test": "jest",
     "typecheck": "tsc --noEmit"
@@ -98,6 +104,7 @@
     "prisma": "^6.0.1",
     "tailwindcss": "^3.4.15",
     "tailwindcss-animate": "^1.0.7",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }

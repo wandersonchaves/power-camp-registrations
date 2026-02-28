@@ -48,8 +48,8 @@ export function getEfiHttpsAgent(): https.Agent {
     [
       "EFI mTLS cert missing.",
       "Provide one of:",
-      "- EFI_PFX_BASE64 + EFI_PASSPHRASE",
-      "- EFI_PFX_PATH + EFI_PASSPHRASE",
+      "- EFI_PFX_BASE64 + EFI_CERT_PASSPHRASE",
+      "- EFI_PFX_PATH + EFI_CERT_PASSPHRASE",
       "- EFI_CERT_PEM_PATH + EFI_CERT_KEY_PEM_PATH",
     ].join(" "),
   );

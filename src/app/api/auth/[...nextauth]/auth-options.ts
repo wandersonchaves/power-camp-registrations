@@ -14,15 +14,20 @@ type TokenWithAppFields = {
   isActive?: boolean;
 };
 
+function requireString(value: unknown, name: string): string {
+  const v = String(value ?? "").trim();
+  if (!v) throw new Error(`[auth] Missing env: ${name}`);
+  return v;
+}
+
 /**
  * Lê role/isActive do banco com segurança.
  * - Evita depender apenas do "user" do callback (que só vem no 1º login).
  * - Garante que o middleware receba token.role/token.isActive.
  */
-async function loadUserFlags(userId: string): Promise<{
-  role: AppRole;
-  isActive: boolean;
-} | null> {
+async function loadUserFlags(
+  userId: string,
+): Promise<{ role: AppRole; isActive: boolean } | null> {
   const u = await prisma.user.findUnique({
     where: { id: userId },
     select: { role: true, isActive: true },
@@ -39,15 +44,25 @@ async function loadUserFlags(userId: string): Promise<{
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
 
-  // ✅ middleware usa getToken(); com callbacks jwt isso precisa ser JWT
+  /**
+   * ✅ Middleware usa getToken(); com callbacks jwt isso precisa ser JWT.
+   * (Se for "database", role/isActive não chegam no token.)
+   */
   session: { strategy: "jwt" },
 
-  secret: env.NEXTAUTH_SECRET,
+  /**
+   * ✅ Garante string no build/runtime.
+   * Ideal: env.mjs tipado corretamente, mas isso evita "unknown" e falha cedo se ausente.
+   */
+  secret: requireString(env.NEXTAUTH_SECRET, "NEXTAUTH_SECRET"),
 
   providers: [
     GoogleProvider({
-      clientId: env.GOOGLE_CLIENT_ID,
-      clientSecret: env.GOOGLE_CLIENT_SECRET,
+      clientId: requireString(env.GOOGLE_CLIENT_ID, "GOOGLE_CLIENT_ID"),
+      clientSecret: requireString(
+        env.GOOGLE_CLIENT_SECRET,
+        "GOOGLE_CLIENT_SECRET",
+      ),
       allowDangerousEmailAccountLinking: true,
     }),
   ],
@@ -64,21 +79,19 @@ export const authOptions: NextAuthOptions = {
           isActive?: boolean;
         };
 
-        // Garante sub (algumas configs podem não preencher imediatamente)
         if (u.id) t.sub = u.id;
 
-        // Se o user do adapter já vier com role/isActive, usa
+        // Se o adapter já trouxer role/isActive, usa direto
         if (u.role) t.role = u.role;
         if (typeof u.isActive === "boolean") t.isActive = u.isActive;
 
-        // Se não vier, busca no banco (fonte de verdade)
+        // Se não veio, busca no banco (fonte de verdade)
         if (t.sub && (t.role == null || t.isActive == null)) {
           const flags = await loadUserFlags(t.sub);
           if (flags) {
             t.role = flags.role;
             t.isActive = flags.isActive;
           } else {
-            // fallback seguro
             t.role = t.role ?? "USER";
             t.isActive = Boolean(t.isActive);
           }
@@ -88,7 +101,7 @@ export const authOptions: NextAuthOptions = {
       }
 
       // 2) Nas requisições seguintes, user não existe.
-      //    Se role/isActive estiverem ausentes (ou token antigo), carrega do banco.
+      //    Só busca no banco se faltarem campos (evita query em todo request).
       if (t.sub && (t.role == null || t.isActive == null)) {
         const flags = await loadUserFlags(t.sub);
         if (flags) {
@@ -108,8 +121,10 @@ export const authOptions: NextAuthOptions = {
 
       if (!session.user) return session;
 
-      // ✅ garante compat com seu middleware + UI
-      // (se você tem module augmentation, isso tipa; se não, isso continua funcionando em runtime)
+      /**
+       * ✅ Mantém compat com UI e middleware.
+       * Obs: Para tipagem perfeita, garanta module augmentation em next-auth.d.ts.
+       */
       session.user.id = t.sub ?? session.user.id;
       session.user.role = t.role ?? "USER";
       session.user.isActive = Boolean(t.isActive);

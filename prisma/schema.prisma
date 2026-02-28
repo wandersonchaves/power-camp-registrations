@@ -166,21 +166,23 @@ model PixAutoRecurrence {
 }
 
 model PixAutoSolicRec {
-  id           String @id @default(cuid())
+  id             String @id @default(cuid())
+  idempotencyKey String @unique
+
   recurrenceId String
+  status       String
+  idSolicRec   String? @unique
 
-  idSolicRec    String?  @unique
-  status        String
   dataExpiracao DateTime
-
-  agencia String
-  conta   String
-  cpf     String
-  ispb    String
+  agencia       String
+  conta         String
+  cpf           String
+  ispb          String
 
   recPayload Json?
 
-  idempotencyKey String @unique
+  payload      Json?
+  inputPayload Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -201,12 +203,15 @@ model PixAutoCobr {
   valorOriginal  String
   infoAdicional  String?
 
+  createdAtEfi DateTime?
+  paidAt       DateTime?
+  endToEndId   String?
+
   ajusteDiaUtil       Boolean @default(false)
   politicaRetentativa String?
 
   idempotencyKey String @unique
-
-  payload Json?
+  payload        Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -216,6 +221,7 @@ model PixAutoCobr {
   @@index([recurrenceId])
   @@index([status])
   @@index([dataVencimento])
+  @@index([paidAt])
 }
 
 model EfiWebhookEvent {
@@ -318,6 +324,7 @@ model InitialPaymentAttempt {
   status       PaymentStatus
   createdAtEfi DateTime?
   paidAt       DateTime?
+  endToEndId   String?
 
   amount  String
   payload Json   @default("{}")
@@ -330,6 +337,8 @@ model InitialPaymentAttempt {
   enrollment Enrollment @relation(fields: [enrollmentId], references: [id])
 
   @@index([status, paidAt])
+  @@index([txid])
+  @@index([endToEndId])
 }
 
 model TeamMilestone {
