@@ -481,7 +481,11 @@ export const pixAutoClient = {
           const res = await http.get<CobrListResponse>("/v2/cobr", {
             params: query,
           });
-          return res.data;
+          const data = res.data ?? ({} as CobrListResponse);
+
+          // normaliza para sempre existir cobsr
+          const cobsr = data.cobsr ?? data.cobrs ?? [];
+          return { ...data, cobsr };
         },
       );
     },
