@@ -118,8 +118,9 @@ model Participant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  event            Event               @relation(fields: [eventId], references: [id])
-  user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event Event @relation(fields: [eventId], references: [id])
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   recurrences      PixAutoRecurrence[]
   pixAutoLocRecs   PixAutoLocRec[]
   pixCobImmediates PixCobImmediate[]
@@ -127,6 +128,7 @@ model Participant {
 
   @@unique([eventId, cpf])
   @@index([eventId])
+  @@index([userId])
 }
 
 model PixAutoRecurrence {
@@ -149,14 +151,14 @@ model PixAutoRecurrence {
   jornada       String?
 
   idempotencyKey String @unique
-
-  payload Json?
+  payload        Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  event         Event             @relation(fields: [eventId], references: [id])
-  participant   Participant       @relation(fields: [participantId], references: [id])
+  event       Event       @relation(fields: [eventId], references: [id])
+  participant Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
   solicitations PixAutoSolicRec[]
   charges       PixAutoCobr[]
 
@@ -179,15 +181,14 @@ model PixAutoSolicRec {
   cpf           String
   ispb          String
 
-  recPayload Json?
-
+  recPayload   Json?
   payload      Json?
   inputPayload Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  recurrence PixAutoRecurrence @relation(fields: [recurrenceId], references: [id])
+  recurrence PixAutoRecurrence @relation(fields: [recurrenceId], references: [id], onDelete: Cascade)
 
   @@index([recurrenceId])
   @@index([status, dataExpiracao])
@@ -216,7 +217,7 @@ model PixAutoCobr {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  recurrence PixAutoRecurrence @relation(fields: [recurrenceId], references: [id])
+  recurrence PixAutoRecurrence @relation(fields: [recurrenceId], references: [id], onDelete: Cascade)
 
   @@index([recurrenceId])
   @@index([status])
@@ -249,7 +250,7 @@ model PixAutoLocRec {
   updatedAt DateTime @updatedAt
 
   event       Event        @relation(fields: [eventId], references: [id])
-  participant Participant? @relation(fields: [participantId], references: [id])
+  participant Participant? @relation(fields: [participantId], references: [id], onDelete: SetNull)
 
   @@index([eventId])
   @@index([participantId])
@@ -266,14 +267,13 @@ model PixCobImmediate {
   criadoEm      DateTime?
 
   idempotencyKey String @unique
-
-  payload Json?
+  payload        Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   event       Event        @relation(fields: [eventId], references: [id])
-  participant Participant? @relation(fields: [participantId], references: [id])
+  participant Participant? @relation(fields: [participantId], references: [id], onDelete: SetNull)
 
   @@index([eventId])
   @@index([participantId])
@@ -306,7 +306,7 @@ model Enrollment {
   updatedAt DateTime @updatedAt
 
   event       Event       @relation(fields: [eventId], references: [id])
-  participant Participant @relation(fields: [participantId], references: [id])
+  participant Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
   team        Team?       @relation(fields: [teamId], references: [id])
 
   initialPayment InitialPaymentAttempt?
@@ -314,6 +314,7 @@ model Enrollment {
   @@unique([eventId, participantId])
   @@index([eventId, status])
   @@index([teamId, status])
+  @@index([participantId])
 }
 
 model InitialPaymentAttempt {
@@ -334,7 +335,7 @@ model InitialPaymentAttempt {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  enrollment Enrollment @relation(fields: [enrollmentId], references: [id])
+  enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
 
   @@index([status, paidAt])
   @@index([txid])
