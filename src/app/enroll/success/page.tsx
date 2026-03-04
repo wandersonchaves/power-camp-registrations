@@ -3,10 +3,15 @@ import type { Prisma } from "@prisma/client";
 import Link from "next/link";
 
 import { AutoRefreshPayment } from "./_components/AutoRefreshPayment.client";
+import { PixCopyPaste } from "./_components/PixCopyPaste.client";
 import { refreshRecurrence } from "./actions";
 
 import { PixQr } from "@/components/pix/PixQr";
+import { TeamBadge } from "@/components/teams/team-badge";
 import { prisma } from "@/lib/prisma";
+import { cn } from "@/lib/utils";
+import { TeamCode } from "@/theme/team-config";
+import { getTeamGradient } from "@/theme/team-styles";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 function pickString(v: string | string[] | undefined) {
@@ -179,7 +184,7 @@ export default async function EnrollSuccessPage(props: {
       status: true,
       eventId: true,
       participantId: true,
-      team: { select: { name: true } },
+      team: { select: { name: true, code: true } },
       participant: { select: { fullName: true } },
       initialPayment: {
         select: {
@@ -221,11 +226,12 @@ export default async function EnrollSuccessPage(props: {
   const payload = asObject(
     enrollment.initialPayment?.payload,
   ) as AttemptPayload;
-  const plan = payload.plan;
 
-  const cobPixRaw = payload?.cob?.pixCopiaECola ?? null;
-  const cobPix =
-    typeof cobPixRaw === "string" ? cobPixRaw : cobPixRaw == null ? null : null;
+  // ✅ MELHOR PRÁTICA: Priorizar o QR da Recorrência (Jornada 3)
+  // Ele contém o pagamento da entrada + a autorização das próximas.
+  const cobPixRaw =
+    recurrence?.pixCopiaECola ?? payload?.cob?.pixCopiaECola ?? null;
+  const cobPix = typeof cobPixRaw === "string" ? cobPixRaw : null;
 
   const isPaid = Boolean(enrollment.initialPayment?.paidAt);
 
@@ -235,144 +241,204 @@ export default async function EnrollSuccessPage(props: {
     recurrenceMonthly: recurrence?.valorRec ?? null,
   });
 
-  return (
-    <main className="min-h-screen bg-gray-50 text-gray-900">
-      <div className="mx-auto max-w-xl space-y-4 px-4 py-10">
-        <div className="rounded-3xl border bg-white p-6 shadow-sm">
-          <h1 className="text-2xl font-semibold">
-            {isPaid ? "Inscrição confirmada ✅" : "Inscrição gerada ✅"}
-          </h1>
-          <p className="mt-1 text-sm text-gray-600">
-            {isPaid
-              ? "Pagamento identificado. Tudo certo!"
-              : "Para confirmar, pague a entrada via Pix abaixo."}
-          </p>
+  const teamCode = enrollment.team?.code as TeamCode | undefined;
 
-          <div className="mt-4 space-y-2 text-sm">
-            <div>
-              <span className="font-medium">Participante:</span>{" "}
-              {enrollment.participant.fullName}
+  return (
+    <main className="min-h-screen bg-gray-50 pb-20 text-gray-900">
+      {/* Visual Header based on team */}
+      {teamCode && (
+        <div
+          className={cn("mb-[-64px] h-32 w-full", getTeamGradient(teamCode))}
+        />
+      )}
+
+      <div className="mx-auto max-w-xl space-y-4 px-4 pt-10">
+        <div className="relative overflow-hidden rounded-3xl border bg-white p-8 shadow-xl">
+          {teamCode && (
+            <div className="absolute right-0 top-0 p-4 opacity-10">
+              <span className="text-8xl">
+                {teamCode === "AGUIA" ? "🦅" : "🦁"}
+              </span>
             </div>
-            <div>
-              <span className="font-medium">Equipe:</span>{" "}
-              {enrollment.team?.name ?? "Lote Zero (sem equipe)"}
-            </div>
+          )}
+
+          <div className="mb-6">
+            {teamCode ? (
+              <TeamBadge team={teamCode} className="mb-2" />
+            ) : (
+              <div className="mb-2 inline-flex items-center rounded-md border bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-800">
+                Lote Zero
+              </div>
+            )}
+            <h1 className="text-3xl font-black tracking-tight">
+              {isPaid ? "Inscrição Confirmada!" : "Inscrição Gerada!"}
+            </h1>
+            <p className="text-muted-foreground mt-1 text-sm font-medium">
+              {isPaid
+                ? "Seu lugar está garantido na arena. Tudo certo!"
+                : "Quase lá! Realize o pagamento para garantir sua vaga."}
+            </p>
           </div>
 
-          <div className="mt-4 rounded-2xl border bg-gray-50 p-4">
-            <div className="text-sm font-semibold">Resumo</div>
-            <div className="mt-2 grid gap-1 text-sm">
-              <div>
-                Total do evento:{" "}
-                <span className="font-medium">{formatBRL(ui.total)}</span>
-              </div>
-              <div>
-                Entrada (agora):{" "}
-                <span className="font-medium">{formatBRL(ui.entryNow)}</span>
-              </div>
-              <div>
-                Parcelas:{" "}
-                <span className="font-medium">{ui.installments ?? "—"}x</span>
-              </div>
-              <div>
-                Mensalidade:{" "}
-                <span className="font-medium">{formatBRL(ui.monthly)}</span>
-              </div>
+          <div className="space-y-4">
+            <div className="grid gap-1 text-sm">
+              <span className="text-muted-foreground text-xs font-bold uppercase tracking-widest">
+                Participante
+              </span>
+              <span className="text-lg font-bold">
+                {enrollment.participant.fullName}
+              </span>
+            </div>
 
-              {ui.showRoundingNote ? (
-                <div className="text-xs text-gray-600">
-                  Pode haver um pequeno ajuste de centavos para fechar o total.
+            <div className="border-muted bg-muted/30 rounded-2xl border-2 border-dashed p-5">
+              <div className="text-muted-foreground mb-3 text-sm font-bold uppercase tracking-widest">
+                Resumo Financeiro
+              </div>
+              <div className="grid gap-2 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">
+                    Total do Evento:
+                  </span>
+                  <span className="text-lg font-bold">
+                    {formatBRL(ui.total)}
+                  </span>
                 </div>
-              ) : null}
-
-              {/* (Opcional para admin/debug: deixa escondido em produção se quiser) */}
-              {plan?.ticketTotalEffective != null ? (
-                <div className="text-xs text-gray-500">
-                  Total efetivo: {formatBRL(plan.ticketTotalEffective)}
+                <div className="border-muted flex items-center justify-between border-b pb-2">
+                  <span className="text-muted-foreground">
+                    Entrada (Pix agora):
+                  </span>
+                  <span
+                    className={cn(
+                      "text-lg font-bold",
+                      !isPaid &&
+                        (teamCode === "AGUIA"
+                          ? "text-blue-600"
+                          : "text-red-600"),
+                    )}
+                  >
+                    {formatBRL(ui.entryNow)}
+                  </span>
                 </div>
-              ) : null}
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-muted-foreground">Parcelas:</span>
+                  <span className="font-bold">
+                    {ui.installments ?? "—"}x de {formatBRL(ui.monthly)}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 
           <AutoRefreshPayment enrollmentId={enrollment.id} enabled={!isPaid} />
 
-          <div className="mt-4">
+          {/* Seção de Pagamento Unificada */}
+          <div className="mt-8 space-y-6">
             {!isPaid ? (
-              cobPix ? (
-                <PixQr value={cobPix} title="Pix de entrada (pague agora)" />
-              ) : (
-                <div className="rounded-2xl border bg-gray-50 p-4 text-sm">
-                  Não foi possível carregar o Pix de entrada. Tente atualizar a
-                  página.
-                </div>
-              )
-            ) : (
-              <div className="rounded-2xl border bg-green-50 p-4 text-sm text-green-900">
-                Pagamento da entrada identificado ✅
+              <div
+                className={cn(
+                  "rounded-2xl border-2 p-6 shadow-sm transition-all",
+                  teamCode === "AGUIA"
+                    ? "border-blue-100 bg-blue-50/30"
+                    : "border-red-100 bg-red-50/30",
+                )}
+              >
+                {cobPix ? (
+                  <div className="space-y-6">
+                    <PixQr value={cobPix} title="Pagamento de Entrada" />
+
+                    <div className="space-y-4">
+                      <PixCopyPaste value={cobPix} label="Copia e Cola" />
+
+                      <p className="text-muted-foreground text-[11px] italic leading-relaxed">
+                        * Este Pix realiza o pagamento da entrada e autoriza
+                        automaticamente as próximas mensalidades.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-muted-foreground p-4 text-center text-sm italic">
+                    Gerando seu QR Code... por favor, aguarde alguns instantes
+                    ou atualize a página.
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-
-          <div className="mt-4 rounded-2xl border bg-gray-50 p-4">
-            <div className="text-sm font-semibold">Mensalidade automática</div>
-            <p className="mt-1 text-sm text-gray-700">
-              {recurrence?.status
-                ? "Mensalidade configurada ✅"
-                : "Estamos preparando a mensalidade automática… (pode levar alguns instantes)"}
-            </p>
-
-            {recurrence?.pixCopiaECola ? (
-              <div className="mt-3">
-                <div className="text-xs font-semibold">
-                  Copia e cola (mensalidade) — opcional
-                </div>
-                <textarea
-                  readOnly
-                  className="mt-2 h-28 w-full rounded-2xl border bg-white p-3 font-mono text-xs outline-none"
-                  value={recurrence.pixCopiaECola}
-                />
-                <p className="mt-2 text-xs text-gray-600">
-                  Você normalmente não precisa disso. A mensalidade roda
-                  automaticamente.
+            ) : (
+              <div className="rounded-2xl border-2 border-green-200 bg-green-50/50 p-6 text-center shadow-sm">
+                <div className="mb-2 text-3xl">✅</div>
+                <h3 className="text-lg font-bold text-green-900">
+                  Pagamento Identificado
+                </h3>
+                <p className="mt-1 text-sm text-green-700">
+                  Sua entrada foi processada com sucesso e sua vaga está
+                  garantida!
                 </p>
               </div>
-            ) : (
-              <p className="mt-2 text-xs text-gray-600">
-                Se ainda não apareceu, clique em “Atualizar” e aguarde alguns
-                segundos.
-              </p>
             )}
 
-            <div className="mt-3 flex gap-2">
-              <form action={refreshRecurrence} className="flex-1">
-                <input
-                  type="hidden"
-                  name="enrollmentId"
-                  value={enrollment.id}
-                />
-                <button
-                  type="submit"
-                  className="w-full rounded-2xl border bg-white px-4 py-2 text-sm font-medium hover:bg-gray-50"
-                >
-                  Atualizar
-                </button>
-              </form>
+            {/* Status da Recorrência */}
+            <div className="bg-muted/20 rounded-2xl border p-5">
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div
+                    className={cn(
+                      "size-2 rounded-full",
+                      recurrence?.status
+                        ? "animate-pulse bg-green-500"
+                        : "bg-amber-500",
+                    )}
+                  />
+                  <span className="text-sm font-bold uppercase tracking-wider">
+                    Recorrência Automática
+                  </span>
+                </div>
+                {recurrence?.status && (
+                  <span className="rounded bg-green-100 px-2 py-0.5 text-[10px] font-black uppercase text-green-700">
+                    Ativa
+                  </span>
+                )}
+              </div>
 
-              <Link
-                href="/admin/race"
-                className="flex-1 rounded-2xl bg-gray-900 px-4 py-2 text-center text-sm font-medium text-white hover:bg-gray-800"
-              >
-                Ver placar
-              </Link>
+              <p className="text-muted-foreground mb-4 text-sm leading-relaxed">
+                {recurrence?.status
+                  ? "Tudo pronto! As próximas parcelas serão cobradas automaticamente no seu Pix conforme o cronograma."
+                  : "Estamos finalizando a configuração da sua mensalidade automática. Isso acontece em instantes após o pagamento da entrada."}
+              </p>
+
+              <div className="flex flex-wrap gap-2">
+                <form
+                  action={refreshRecurrence}
+                  className="min-w-[140px] flex-1"
+                >
+                  <input
+                    type="hidden"
+                    name="enrollmentId"
+                    value={enrollment.id}
+                  />
+                  <button
+                    type="submit"
+                    className="hover:bg-accent w-full rounded-xl border bg-white px-4 py-2.5 text-xs font-bold shadow-sm transition-all active:scale-95"
+                  >
+                    🔄 Atualizar Status
+                  </button>
+                </form>
+
+                <Link
+                  href="/admin/race"
+                  className="min-w-[140px] flex-1 rounded-xl bg-gray-900 px-4 py-2.5 text-center text-xs font-bold text-white shadow-md shadow-gray-200 transition-all hover:bg-gray-800 active:scale-95"
+                >
+                  🏆 Ver Placar Geral
+                </Link>
+              </div>
             </div>
           </div>
 
-          <div className="mt-4">
+          <div className="mt-8 border-t pt-6">
             <Link
               href="/enroll"
-              className="block w-full rounded-2xl border bg-white px-4 py-3 text-center text-sm font-medium hover:bg-gray-50"
+              className="border-muted text-muted-foreground hover:border-primary hover:text-primary hover:bg-primary/5 group flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed p-4 text-center text-sm font-bold transition-all"
             >
-              Nova inscrição
+              <span>✨</span>
+              Fazer nova inscrição para outra pessoa
             </Link>
           </div>
         </div>
