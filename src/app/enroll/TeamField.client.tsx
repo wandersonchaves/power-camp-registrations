@@ -3,8 +3,11 @@
 
 import * as React from "react";
 
+import { cn } from "@/lib/utils";
+import { TEAM_CONFIG, TeamCode } from "@/theme/team-config";
+import { getTeamGradient } from "@/theme/team-styles";
+
 type TicketType = "ANTECIPADA" | "LOTE_ZERO";
-type TeamCode = "AGUIA" | "LEAO";
 
 type Props = {
   defaultTicketType?: TicketType;
@@ -21,16 +24,18 @@ export function TeamField({
   const [teamCode, setTeamCode] = React.useState<TeamCode>(defaultTeamCode);
 
   const isLoteZero = ticketType === "LOTE_ZERO";
-
-  // ✅ Se virar Lote Zero, “limpa” teamCode enviado
-  // (mantemos o state do select para quando voltar a ANTECIPADA)
   const submittedTeamCode = isLoteZero ? "" : teamCode;
 
+  const teams: TeamCode[] = ["AGUIA", "LEAO"];
+
   return (
-    <>
+    <div className="space-y-6">
       {/* Ticket Type */}
-      <div>
-        <label htmlFor="ticketType" className="text-sm font-medium">
+      <div className="space-y-2">
+        <label
+          htmlFor="ticketType"
+          className="text-muted-foreground text-sm font-bold uppercase tracking-wider"
+        >
           Tipo de inscrição
         </label>
 
@@ -39,48 +44,94 @@ export function TeamField({
           name="ticketType"
           value={ticketType}
           onChange={(e) => setTicketType(e.target.value as TicketType)}
-          className="mt-1 w-full rounded-2xl border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900"
+          className="border-muted bg-background focus:border-primary focus:ring-primary/10 w-full rounded-2xl border-2 px-4 py-3 text-sm font-medium outline-none transition-all focus:ring-4"
         >
           <option value="ANTECIPADA">
-            Inscrição antecipada (escolha de equipes)
+            Inscrição Antecipada (Escolha sua equipe)
           </option>
-          <option value="LOTE_ZERO">Lote Zero (sorteio na bolinha)</option>
+          <option value="LOTE_ZERO">Lote Zero (Sorteio presencial)</option>
         </select>
 
-        <p className="mt-1 text-xs text-gray-600">
-          Se selecionar <strong>Lote Zero</strong>, a equipe será definida
-          depois.
+        <p className="text-muted-foreground text-xs italic">
+          {isLoteZero
+            ? "⚠️ No Lote Zero, sua equipe será definida por sorteio na data do evento."
+            : "✅ Escolha a equipe que você deseja representar."}
         </p>
       </div>
 
-      {/* Team Code (UI) */}
-      <div>
-        <label htmlFor="teamCodeSelect" className="text-sm font-medium">
-          Equipe (não disponível no Lote Zero)
+      {/* Team Selection (Visual) */}
+      <div
+        className={cn(
+          "space-y-3 transition-opacity duration-300",
+          isLoteZero && "pointer-events-none opacity-40",
+        )}
+      >
+        <label
+          htmlFor="team"
+          className="text-muted-foreground text-sm font-bold uppercase tracking-wider"
+        >
+          Escolha sua Equipe
         </label>
 
-        {/* ✅ Select sem "name" (apenas UI). O que vale é o hidden abaixo. */}
-        <select
-          id="teamCodeSelect"
-          value={teamCode}
-          onChange={(e) => setTeamCode(e.target.value as TeamCode)}
-          disabled={isLoteZero}
-          className={[
-            "mt-1 w-full rounded-2xl border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900",
-            isLoteZero ? "opacity-50" : "",
-          ].join(" ")}
-        >
-          <option value="AGUIA">Equipe Águia</option>
-          <option value="LEAO">Equipe Leão</option>
-        </select>
+        <div className="grid grid-cols-2 gap-4">
+          {teams.map((t) => {
+            const isSelected = teamCode === t && !isLoteZero;
+            const config = TEAM_CONFIG[t];
 
-        {/* ✅ Um ÚNICO campo enviado para o server */}
+            return (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setTeamCode(t)}
+                className={cn(
+                  "relative flex flex-col items-center justify-center overflow-hidden rounded-3xl border-2 p-6 transition-all duration-300",
+                  isSelected
+                    ? cn(
+                        "scale-105 border-transparent shadow-xl",
+                        t === "AGUIA" ? "shadow-blue-200" : "shadow-red-200",
+                      )
+                    : "border-muted bg-card opacity-70 grayscale-[0.5] hover:border-gray-300",
+                )}
+              >
+                {/* Background Gradient when selected */}
+                {isSelected && (
+                  <div
+                    className={cn(
+                      "absolute inset-0 opacity-10",
+                      getTeamGradient(t),
+                    )}
+                  />
+                )}
+
+                <span className="mb-2 text-4xl">{config.icon}</span>
+                <span
+                  className={cn(
+                    "font-black tracking-tight",
+                    isSelected
+                      ? t === "AGUIA"
+                        ? "text-blue-700"
+                        : "text-red-700"
+                      : "text-muted-foreground",
+                  )}
+                >
+                  {config.name}
+                </span>
+
+                {isSelected && (
+                  <div
+                    className={cn(
+                      "absolute inset-x-0 bottom-0 h-1.5",
+                      getTeamGradient(t),
+                    )}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
         <input type="hidden" name="teamCode" value={submittedTeamCode} />
-
-        <p className="mt-1 text-xs text-gray-600">
-          No <strong>Lote Zero</strong>, a equipe não é escolhida aqui.
-        </p>
       </div>
-    </>
+    </div>
   );
 }
