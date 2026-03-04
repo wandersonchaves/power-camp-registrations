@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 
 import { pixAutoClient } from "@/infra/efi/pix-auto.client";
 import type { CobResponse } from "@/infra/efi/pix-auto.types";
+import { buildTxid } from "@/infra/efi/txid";
 import { waitForCobActive } from "@/infra/efi/wait-for-cob-active";
 import { sha256 } from "@/lib/crypto";
 import { AppError } from "@/lib/http-errors";
@@ -130,17 +131,17 @@ async function waitCobActivatableForRec(txid: string, budgetMs: number) {
     label: "[EFI J3] wait-cob-activatable-for-rec",
     maxTotalMs: budgetMs,
 
-    maxAttempts: 12,
-    baseDelayMs: 300,
-    maxDelayMs: 3_000,
-    multiplier: 1.5,
-    jitterMs: 250,
+    maxAttempts: 15,
+    baseDelayMs: 400,
+    maxDelayMs: 4_000,
+    multiplier: 1.6,
+    jitterMs: 300,
 
-    dedupeTtlMs: 8_000,
-    getCacheTtlMs: 1_250,
+    dedupeTtlMs: 10_000,
+    getCacheTtlMs: 1_500,
 
-    minCobAgeMs: 2_500, // um pouco maior do que você vinha usando
-    requireConsecutiveActiveReads: 2,
+    minCobAgeMs: 4_500, // Aumentado para dar tempo de estabilizar no HMG
+    requireConsecutiveActiveReads: 3, // Mais verificações para garantir estabilidade
     acceptPaidAsUsable: false,
   });
 }
@@ -306,12 +307,20 @@ async function startEfiJourney3WithFallback(params: {
   let lastLocrec: { id: number; location?: string | null } | null = null;
 
   for (let cycle = 1; cycle <= cobCycles; cycle++) {
+    const txid = buildTxid({
+      eventId: "J3",
+      kind: "COB_IMMEDIATE",
+      enrollmentId: params.contrato,
+      participantId: params.participant.cpf,
+      installmentIndex: cycle,
+    });
+
     // 1) locrec
     const locrec = await pixAutoClient.locrec.create();
     lastLocrec = { id: locrec.id, location: locrec.location ?? null };
 
-    // 2) cob
-    const cob = await pixAutoClient.cob.create({
+    // 2) cob (PUT)
+    const cob = await pixAutoClient.cob.put(txid, {
       calendario: { expiracao: expSeconds },
       devedor: {
         cpf: params.participant.cpf,
@@ -324,16 +333,6 @@ async function startEfiJourney3WithFallback(params: {
         : {}),
     });
     lastCob = cob;
-
-    const txid = String(cob.txid ?? "").trim();
-    if (!txid) {
-      throw new AppError(
-        "EFI não retornou txid ao criar COB.",
-        502,
-        "EFI_COB_MISSING_TXID",
-        cob,
-      );
-    }
 
     if (pixAutoClient.errors.cob.isTerminalNotUsableStatus(cob.status)) {
       throw new AppError(
@@ -643,6 +642,7 @@ export async function createEnrollmentAndStartJourney3UseCase(
         locationUrl: locrec.location,
         jornada: recGet.dadosQR?.jornada ?? "JORNADA_3",
         pixCopiaECola: recGet.dadosQR?.pixCopiaECola ?? null,
+        firstCobTxid: txid,
         valorRec: recurringAmount,
         periodicidade: input.periodicidade,
         dataInicial: new Date(`${input.dataInicial}T00:00:00.000Z`),
@@ -671,6 +671,7 @@ export async function createEnrollmentAndStartJourney3UseCase(
         locationUrl: locrec.location,
         jornada: recGet.dadosQR?.jornada ?? "JORNADA_3",
         pixCopiaECola: recGet.dadosQR?.pixCopiaECola ?? null,
+        firstCobTxid: txid,
         payload: asInputJson({
           createdFrom: "journey3/enroll",
           activationTxid: txid,
@@ -691,8 +692,11 @@ export async function createEnrollmentAndStartJourney3UseCase(
   return {
     enrollmentId: enrollment.id,
     txid,
-    cobPixCopiaECola: cob.pixCopiaECola ?? null,
+    // Em Jornada 3, o QR Code de ativação da recorrência já engloba o valor da cobrança inicial.
+    // Exibir o QR da cob (cob.pixCopiaECola) é um erro comum que deixa a recorrência orfã.
+    cobPixCopiaECola:
+      recGet.dadosQR?.pixCopiaECola || cob.pixCopiaECola || null,
     idRec: rec.idRec,
-    recPixCopiaECola: recGet.dadosQR?.pixCopiaECola ?? null,
+    recPixCopiaECola: recGet.dadosQR?.pixCopiaECola || null,
   };
 }
