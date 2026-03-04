@@ -2,7 +2,6 @@ import "@/styles/globals.css";
 
 import type { ReactNode } from "react";
 
-import { AppChrome } from "@/components/layouts/AppChrome";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/toaster";
 import { getAuthSession } from "@/lib/auth/server";
@@ -19,10 +18,16 @@ export default async function RootLayout({
 
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={cn("min-h-screen font-sans", fonts.join(" "))}>
+      <body
+        className={cn(
+          "bg-background min-h-screen font-sans antialiased",
+          fonts.join(" "),
+        )}
+      >
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <AuthSessionProvider session={session}>
-            <AppChrome>{children}</AppChrome>
+            {/* O SiteShell agora decide o layout com base na sessão e contexto */}
+            {children}
           </AuthSessionProvider>
           <Toaster />
         </ThemeProvider>
