@@ -257,6 +257,28 @@ export const pixAutoClient = {
       );
     },
 
+    async put(txid: string, body: CreateCobRequest): Promise<CobResponse> {
+      const safeTxid = normalizeTxid(txid);
+      const http = getEfiHttpClient();
+      return withAxiosLog(
+        http,
+        {
+          op: "PUT /v2/cob/:txid",
+          url: `/v2/cob/${safeTxid}`,
+          method: "PUT",
+          txid: safeTxid,
+        },
+        async () => {
+          const res = await http.put<CobResponse>(
+            `/v2/cob/${encodeURIComponent(safeTxid)}`,
+            body,
+          );
+          if (res.data?.txid) assertValidTxid(res.data.txid);
+          return res.data;
+        },
+      );
+    },
+
     async get(txid: string): Promise<CobResponse> {
       const safeTxid = normalizeTxid(txid);
       const http = getEfiHttpClient();
