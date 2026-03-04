@@ -93,6 +93,9 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
     );
   }
 
+  // competencia baseada no vencimento (YYYY-MM)
+  const competencia = dueDate.slice(0, 7);
+
   // txid determinístico (estável)
   const txid = buildTxid({
     eventId,
@@ -101,13 +104,15 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
     dueDate,
   });
 
-  // Idempotência local por txid
-  const existing = await prisma.pixAutoCobr.findFirst({ where: { txid } });
+  // Idempotência local por (recurrenceId, competencia)
+  const existing = await prisma.pixAutoCobr.findFirst({
+    where: { recurrenceId: rec.id, competencia },
+  });
   if (existing) return existing;
 
-  // Draft para evitar race (idempotencyKey = hash)
+  // Draft para evitar race
   const idempotencyKey = sha256(
-    ["COBR_NEXT", rec.idRec, txid, dueDate, amount].join("|"),
+    ["COBR_NEXT_V2", rec.id, competencia, txid, dueDate, amount].join("|"),
   );
 
   const draft = await prisma.pixAutoCobr.upsert({
@@ -117,6 +122,7 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
       idempotencyKey,
       recurrenceId: rec.id,
       txid,
+      competencia,
       status: "CREATING",
       dataVencimento: new Date(`${dueDate}T00:00:00.000Z`),
       valorOriginal: amount,
