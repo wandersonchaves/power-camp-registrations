@@ -32,6 +32,16 @@ enum UserRole {
   USER
 }
 
+enum MigrationStatus {
+  PENDING_CONSENT
+  QR_GENERATED
+  SENT
+  CONSENT_ACCEPTED
+  CONSENT_REJECTED
+  FAILED
+  CANCELED
+}
+
 model Account {
   id                String  @id @default(cuid())
   userId            String
@@ -149,6 +159,7 @@ model PixAutoRecurrence {
   locationUrl   String?
   pixCopiaECola String?
   jornada       String?
+  firstCobTxid  String? @unique
 
   idempotencyKey String @unique
   payload        Json?
@@ -161,6 +172,7 @@ model PixAutoRecurrence {
 
   solicitations PixAutoSolicRec[]
   charges       PixAutoCobr[]
+  migration     PixAutoMigration?
 
   @@index([eventId])
   @@index([participantId])
@@ -203,6 +215,7 @@ model PixAutoCobr {
   dataVencimento DateTime
   valorOriginal  String
   infoAdicional  String?
+  competencia    String? // Ex: "2024-05"
 
   createdAtEfi DateTime?
   paidAt       DateTime?
@@ -219,6 +232,7 @@ model PixAutoCobr {
 
   recurrence PixAutoRecurrence @relation(fields: [recurrenceId], references: [id], onDelete: Cascade)
 
+  @@unique([recurrenceId, competencia])
   @@index([recurrenceId])
   @@index([status])
   @@index([dataVencimento])
@@ -380,4 +394,39 @@ model TeamAward {
 
   @@unique([eventId, awardKey])
   @@index([eventId, decidedAt])
+}
+
+model PixAutoMigration {
+  id     String          @id @default(cuid())
+  status MigrationStatus @default(PENDING_CONSENT)
+
+  recurrenceId String            @unique
+  recurrence   PixAutoRecurrence @relation(fields: [recurrenceId], references: [id], onDelete: Cascade)
+
+  consentQrCode String? @db.Text
+  attempts      Int     @default(0)
+  lastError     Json?
+  metadata      Json?
+
+  generatedAt   DateTime?
+  sentAt        DateTime?
+  acceptedAt    DateTime?
+  lastCheckedAt DateTime? @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  auditLogs MigrationAuditLog[]
+
+  @@index([status, lastCheckedAt])
+}
+
+model MigrationAuditLog {
+  id          String           @id @default(cuid())
+  migrationId String
+  migration   PixAutoMigration @relation(fields: [migrationId], references: [id], onDelete: Cascade)
+  action      String
+  payload     Json?
+  userEmail   String?
+  createdAt   DateTime         @default(now())
 }
