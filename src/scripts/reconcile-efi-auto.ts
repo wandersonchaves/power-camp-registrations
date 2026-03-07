@@ -134,8 +134,8 @@ async function reconcileCobr(startIso: string, endIso: string) {
 
   for (;;) {
     const res: CobrListResponse = await pixAutoClient.cobr.list({
-      inicio: startIso,
-      fim: endIso,
+      inicio: toEfiIso(new Date(startIso)),
+      fim: toEfiIso(new Date(endIso)),
       "paginacao.paginaAtual": paginaAtual,
       "paginacao.itensPorPagina": itensPorPagina,
     });

@@ -1,11 +1,16 @@
-import type { TeamCode } from "@prisma/client";
+import type { TeamCode as PrismaTeamCode } from "@prisma/client";
 
 import { EnrollmentsTable } from "../../_components/EnrollmentsTable";
 import { Progress50 } from "../../_components/Progress50";
-import { StatCard } from "../../_components/StatCard";
 import { listEnrollments } from "../../_data/admin.queries";
 
-type Params = { teamCode: TeamCode };
+import { TeamBadge } from "@/components/teams/team-badge";
+import { TeamCard } from "@/components/teams/team-card";
+import { cn } from "@/lib/utils";
+import { TeamCode } from "@/theme/team-config";
+import { getTeamDisplayName } from "@/theme/team-styles";
+
+type Params = { teamCode: PrismaTeamCode };
 type SearchParams = Record<string, string | string[] | undefined>;
 
 function pickString(v: string | string[] | undefined) {
@@ -32,7 +37,7 @@ export default async function TeamPage(props: {
   const params = await props.params;
   const searchParams = await props.searchParams;
 
-  const teamCode = params.teamCode;
+  const teamCode = params.teamCode as TeamCode;
 
   const q = pickString(searchParams.q)?.trim() ?? "";
   const status = pickString(searchParams.status) as
@@ -54,61 +59,94 @@ export default async function TeamPage(props: {
   const pending = data.items.filter((i) => i.status === "PENDING").length;
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold">
-          {teamCode === "AGUIA" ? "Equipe Águia" : "Equipe Leão"}
-        </h1>
-        <p className="mt-1 text-sm text-gray-600">
-          Controle por equipe (até 50 confirmados).
-        </p>
+    <div className="space-y-6">
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
+        <div>
+          <div className="mb-2">
+            <TeamBadge team={teamCode} className="text-sm" />
+          </div>
+          <h1 className="text-3xl font-black tracking-tight">
+            {getTeamDisplayName(teamCode)}
+          </h1>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Gestão estratégica e monitoramento de performance da equipe.
+          </p>
+        </div>
+
+        <div className="text-muted-foreground bg-muted flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold uppercase tracking-widest">
+          Meta: 50 Confirmados
+        </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <StatCard
+      <div className="grid gap-6 md:grid-cols-2">
+        <TeamCard
+          team={teamCode}
           title="Confirmados"
-          value={String(confirmed)}
-          subtitle={`${pending} pendentes`}
-          right={<Progress50 confirmed={confirmed} />}
-        />
-        <StatCard
-          title="Total na lista"
-          value={String(data.total)}
-          subtitle="considerando filtros"
-        />
+          subtitle={`${pending} pendentes na fila`}
+          gradient
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-4xl font-bold">{confirmed}</span>
+            <div className="w-32">
+              <Progress50 confirmed={confirmed} />
+            </div>
+          </div>
+        </TeamCard>
+
+        <TeamCard
+          team={teamCode}
+          title="Total Inscritos"
+          subtitle="Base total da equipe (todos os status)"
+        >
+          <span className="text-4xl font-bold">{data.total}</span>
+        </TeamCard>
       </div>
 
       <form
-        className="flex flex-wrap gap-2 rounded-2xl border bg-white p-4 shadow-sm"
+        className="bg-card flex flex-wrap gap-3 rounded-2xl border p-5 shadow-sm"
         method="GET"
       >
-        <input
-          name="q"
-          defaultValue={q}
-          placeholder="Buscar (nome, CPF, TXID)..."
-          className="w-72 rounded-xl border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900"
-        />
+        <div className="min-w-[280px] flex-1">
+          <input
+            name="q"
+            defaultValue={q}
+            placeholder="Buscar por nome, CPF ou TXID..."
+            className={cn(
+              "bg-background w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-all focus:ring-2",
+              teamCode === "AGUIA"
+                ? "border-blue-100 focus:ring-blue-500"
+                : "border-red-100 focus:ring-red-500",
+            )}
+          />
+        </div>
 
         <select
           name="status"
           defaultValue={status ?? ""}
-          className="rounded-xl border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900"
+          className="bg-background rounded-xl border px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-gray-200"
         >
-          <option value="">Todos</option>
-          <option value="PENDING">PENDING</option>
-          <option value="CONFIRMED">CONFIRMED</option>
-          <option value="CANCELLED">CANCELLED</option>
+          <option value="">Todos os Status</option>
+          <option value="PENDING">PENDENTE</option>
+          <option value="CONFIRMED">CONFIRMADO</option>
+          <option value="CANCELLED">CANCELADO</option>
         </select>
 
         <button
-          className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+          className={cn(
+            "rounded-xl px-6 py-2.5 text-sm font-bold text-white transition-all hover:scale-[1.02] active:scale-[0.98]",
+            teamCode === "AGUIA"
+              ? "bg-blue-600 shadow-lg shadow-blue-100 hover:bg-blue-700"
+              : "bg-red-600 shadow-lg shadow-red-100 hover:bg-red-700",
+          )}
           type="submit"
         >
-          Filtrar
+          Filtrar Lista
         </button>
       </form>
 
-      <EnrollmentsTable items={data.items} />
+      <div className="bg-card overflow-hidden rounded-2xl border shadow-sm">
+        <EnrollmentsTable items={data.items} />
+      </div>
     </div>
   );
 }
