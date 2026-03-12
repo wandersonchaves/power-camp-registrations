@@ -1,10 +1,8 @@
 // src/app/enroll/success/page.tsx
-import type { Prisma } from "@prisma/client";
 import Link from "next/link";
 
 import { AutoRefreshPayment } from "./_components/AutoRefreshPayment.client";
 import { PixCopyPaste } from "./_components/PixCopyPaste.client";
-import { refreshRecurrence } from "./actions";
 
 import { PixQr } from "@/components/pix/PixQr";
 import { TeamBadge } from "@/components/teams/team-badge";
@@ -20,67 +18,26 @@ function pickString(v: string | string[] | undefined) {
 
 export const runtime = "nodejs";
 
-/** ===== Payload types (best-effort / backward compatible) ===== */
-type PlanPayload = {
-  ticketTotalTarget?: unknown;
-  ticketTotalEffective?: unknown;
-  installments?: unknown;
-  installmentAmount?: unknown;
-  firstPaymentAmount?: unknown;
-  recurringAmount?: unknown;
-  recurringCount?: unknown;
-  isSinglePayment?: unknown;
-  roundingDifference?: unknown;
-};
-
-type AttemptPayload = {
-  ticketType?: unknown; // "ANTECIPADA" | "LOTE_ZERO"
-  teamCode?: unknown; // "AGUIA" | "LEAO" | null
-  plan?: PlanPayload;
-  cob?: { pixCopiaECola?: unknown | null };
-  ticket?: {
-    // fallback (quando plan não existe/está inconsistente)
-    immediateAmount?: unknown;
-    recurringAmount?: unknown;
-    periodicidade?: unknown;
-    dataInicial?: unknown;
-    dataFinal?: unknown;
-    contrato?: unknown;
-    objeto?: unknown;
-    teamCode?: unknown;
-  };
-};
-
-function asObject(
-  v: Prisma.JsonValue | null | undefined,
-): Record<string, unknown> {
-  return v && typeof v === "object" && !Array.isArray(v)
-    ? (v as Record<string, unknown>)
-    : {};
-}
-
-function toStringSafe(v: unknown): string | null {
-  if (typeof v === "string") return v;
-  if (typeof v === "number" && Number.isFinite(v)) return String(v);
-  return null;
-}
-
 /**
- * Aceita:
- * - "250.00"
- * - "250,00"
- * - 250
- * - "20.83"
+ * Converte string de dinheiro (915.00 ou 915,00) em número corretamente.
  */
 function moneyToNumber(v: unknown): number | null {
   if (typeof v === "number" && Number.isFinite(v)) return v;
-
   if (typeof v === "string") {
-    const s = v.trim().replace(/\./g, ".").replace(",", ".");
+    let s = v.trim();
+    // Se tiver vírgula e ponto (ex: 1.250,00), remove ponto e troca vírgula por ponto
+    if (s.includes(",") && s.includes(".")) {
+      s = s.replace(/\./g, "").replace(",", ".");
+    }
+    // Se tiver apenas vírgula (ex: 915,00), troca por ponto
+    else if (s.includes(",")) {
+      s = s.replace(",", ".");
+    }
+    // Se for apenas número com ponto (ex: 915.00), mantém como está
+
     const n = Number(s);
     return Number.isFinite(n) ? n : null;
   }
-
   return null;
 }
 
@@ -90,92 +47,18 @@ function formatBRL(v: unknown): string {
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-function toInt(v: unknown): number | null {
-  if (typeof v === "number" && Number.isFinite(v)) return Math.trunc(v);
-  if (typeof v === "string") {
-    const n = Number(v);
-    return Number.isFinite(n) ? Math.trunc(n) : null;
-  }
-  return null;
-}
-
-function isNonZeroMoney(v: unknown): boolean {
-  const n = moneyToNumber(v);
-  return n !== null && Math.abs(n) > 0;
-}
-
-function resolveEventTotalByTicketType(ticketType: string | null): string {
-  // defaults seguros (server-side)
-  if (ticketType === "LOTE_ZERO") {
-    return process.env.POWERCAMP_LOTE_ZERO_TOTAL ?? "0.00";
-  }
-  return process.env.POWERCAMP_ANTECIPADA_TOTAL ?? "250.00";
-}
-
-type UiSummary = {
-  total: unknown;
-  entryNow: unknown;
-  installments: number | null;
-  monthly: unknown;
-  showRoundingNote: boolean;
-};
-
-function buildUiSummary(params: {
-  payload: AttemptPayload;
-  attemptAmount: unknown;
-  recurrenceMonthly: unknown;
-}): UiSummary {
-  const { payload, attemptAmount, recurrenceMonthly } = params;
-
-  const ticketType = toStringSafe(payload.ticketType);
-  const plan = payload.plan ?? {};
-
-  const total =
-    plan.ticketTotalTarget ?? resolveEventTotalByTicketType(ticketType) ?? null;
-
-  // ✅ Entrada: plan -> attempt.amount -> cob.valor.original -> ticket.immediateAmount
-  const cobOriginal =
-    payload?.cob && typeof payload.cob === "object"
-      ? ((payload.cob as { valor?: { original?: string }; original?: string })
-          ?.valor?.original ?? (payload.cob as { original?: string })?.original)
-      : undefined;
-
-  const entryNow =
-    plan.firstPaymentAmount ??
-    attemptAmount ??
-    cobOriginal ??
-    payload.ticket?.immediateAmount ??
-    null;
-
-  const installments = toInt(plan.installments);
-
-  // ✅ Mensalidade: plan -> recurrence.valorRec -> ticket.recurringAmount
-  const monthly =
-    plan.recurringAmount ??
-    recurrenceMonthly ??
-    payload.ticket?.recurringAmount ??
-    null;
-
-  const showRoundingNote = isNonZeroMoney(plan.roundingDifference);
-
-  return { total, entryNow, installments, monthly, showRoundingNote };
-}
-
 export default async function EnrollSuccessPage(props: {
   searchParams: Promise<SearchParams>;
 }) {
   const searchParams = await props.searchParams;
   const enrollmentId = pickString(searchParams.enrollmentId) ?? "";
 
-  if (!enrollmentId) {
+  if (!enrollmentId)
     return (
-      <div className="p-6">
-        <div className="rounded-2xl border bg-white p-6">
-          Inscrição não encontrada (ID ausente).
-        </div>
+      <div className="p-10 text-center font-sans font-bold">
+        Inscrição não encontrada.
       </div>
     );
-  }
 
   const enrollment = await prisma.enrollment.findUnique({
     where: { id: enrollmentId },
@@ -184,68 +67,57 @@ export default async function EnrollSuccessPage(props: {
       status: true,
       eventId: true,
       participantId: true,
-      team: { select: { name: true, code: true } },
+      team: { select: { id: true, name: true, code: true } },
       participant: { select: { fullName: true } },
       initialPayment: {
-        select: {
-          txid: true,
-          status: true,
-          amount: true,
-          payload: true,
-          paidAt: true,
-        },
+        select: { paidAt: true, amount: true, payload: true, txid: true },
       },
     },
   });
 
-  if (!enrollment) {
+  if (!enrollment)
     return (
-      <div className="p-6">
-        <div className="rounded-2xl border bg-white p-6">
-          Inscrição não encontrada.
-        </div>
+      <div className="p-10 text-center font-sans font-bold">
+        Inscrição não encontrada.
       </div>
     );
-  }
 
-  const recurrence = await prisma.pixAutoRecurrence.findFirst({
+  const myRecurrence = await prisma.pixAutoRecurrence.findFirst({
     where: {
       participantId: enrollment.participantId,
       eventId: enrollment.eventId,
+      status: { in: ["CRIADA", "ATIVA", "APROVADA"] },
     },
     orderBy: { createdAt: "desc" },
-    select: {
-      status: true,
-      pixCopiaECola: true,
-      jornada: true,
-      valorRec: true,
-      periodicidade: true,
-    },
   });
 
-  const payload = asObject(
-    enrollment.initialPayment?.payload,
-  ) as AttemptPayload;
+  const teamRecurrence = enrollment.team
+    ? await prisma.pixAutoRecurrence.findFirst({
+        where: {
+          eventId: enrollment.eventId,
+          participant: {
+            enrollments: {
+              some: {
+                teamId: enrollment.team.id,
+                status: { in: ["PENDING", "CONFIRMED"] },
+              },
+            },
+          },
+          status: { in: ["CRIADA", "ATIVA", "APROVADA"] },
+        },
+        include: { participant: { select: { fullName: true } } },
+        orderBy: { createdAt: "desc" },
+      })
+    : null;
 
-  // ✅ MELHOR PRÁTICA: Priorizar o QR da Recorrência (Jornada 3)
-  // Ele contém o pagamento da entrada + a autorização das próximas.
-  const cobPixRaw =
-    recurrence?.pixCopiaECola ?? payload?.cob?.pixCopiaECola ?? null;
-  const cobPix = typeof cobPixRaw === "string" ? cobPixRaw : null;
-
-  const isPaid = Boolean(enrollment.initialPayment?.paidAt);
-
-  const ui = buildUiSummary({
-    payload,
-    attemptAmount: enrollment.initialPayment?.amount ?? null,
-    recurrenceMonthly: recurrence?.valorRec ?? null,
-  });
-
+  const hasMyOwnRecurrence = !!myRecurrence;
+  const isTeamRecurrenceActive =
+    teamRecurrence?.status === "ATIVA" || teamRecurrence?.status === "APROVADA";
+  const isPaidEntrance = Boolean(enrollment.initialPayment?.paidAt);
   const teamCode = enrollment.team?.code as TeamCode | undefined;
 
   return (
-    <main className="min-h-screen bg-gray-50 pb-20 text-gray-900">
-      {/* Visual Header based on team */}
+    <main className="min-h-screen bg-gray-50 pb-20 font-sans text-gray-900">
       {teamCode && (
         <div
           className={cn("mb-[-64px] h-32 w-full", getTeamGradient(teamCode))}
@@ -253,7 +125,7 @@ export default async function EnrollSuccessPage(props: {
       )}
 
       <div className="mx-auto max-w-xl space-y-4 px-4 pt-10">
-        <div className="relative overflow-hidden rounded-3xl border bg-white p-8 shadow-xl">
+        <div className="relative overflow-hidden rounded-3xl border bg-white p-8 shadow-2xl">
           {teamCode && (
             <div className="absolute right-0 top-0 p-4 opacity-10">
               <span className="text-8xl">
@@ -271,174 +143,177 @@ export default async function EnrollSuccessPage(props: {
               </div>
             )}
             <h1 className="text-3xl font-black tracking-tight">
-              {isPaid ? "Inscrição Confirmada!" : "Inscrição Gerada!"}
+              {isPaidEntrance ? "Inscrição Confirmada!" : "Inscrição Gerada!"}
             </h1>
-            <p className="text-muted-foreground mt-1 text-sm font-medium">
-              {isPaid
-                ? "Seu lugar está garantido na arena. Tudo certo!"
-                : "Quase lá! Realize o pagamento para garantir sua vaga."}
+            <p className="text-muted-foreground mt-1 text-balance text-sm font-medium italic">
+              Arena {enrollment.team?.name || "PowerCamp"}.
             </p>
           </div>
 
-          <div className="space-y-4">
-            <div className="grid gap-1 text-sm">
-              <span className="text-muted-foreground text-xs font-bold uppercase tracking-widest">
+          <div className="space-y-6">
+            <div className="grid gap-1 border-b pb-4">
+              <span className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest">
                 Participante
               </span>
-              <span className="text-lg font-bold">
+              <span className="text-xl font-black">
                 {enrollment.participant.fullName}
               </span>
             </div>
 
-            <div className="border-muted bg-muted/30 rounded-2xl border-2 border-dashed p-5">
-              <div className="text-muted-foreground mb-3 text-sm font-bold uppercase tracking-widest">
-                Resumo Financeiro
-              </div>
-              <div className="grid gap-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">
-                    Total do Evento:
-                  </span>
-                  <span className="text-lg font-bold">
-                    {formatBRL(ui.total)}
-                  </span>
-                </div>
-                <div className="border-muted flex items-center justify-between border-b pb-2">
-                  <span className="text-muted-foreground">
-                    Entrada (Pix agora):
-                  </span>
-                  <span
+            {/* Status da Entrada */}
+            <div
+              className={cn(
+                "flex items-center justify-between rounded-2xl border p-4 shadow-sm transition-all",
+                isPaidEntrance
+                  ? "border-green-100 bg-green-50"
+                  : "border-amber-100 bg-amber-50",
+              )}
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">{isPaidEntrance ? "✅" : "⏳"}</span>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-tight text-gray-800">
+                    Entrada Individual
+                  </p>
+                  <p
                     className={cn(
-                      "text-lg font-bold",
-                      !isPaid &&
-                        (teamCode === "AGUIA"
-                          ? "text-blue-600"
-                          : "text-red-600"),
+                      "text-sm font-medium",
+                      isPaidEntrance ? "text-green-700" : "text-amber-700",
                     )}
                   >
-                    {formatBRL(ui.entryNow)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between pt-1">
-                  <span className="text-muted-foreground">Parcelas:</span>
-                  <span className="font-bold">
-                    {ui.installments ?? "—"}x de {formatBRL(ui.monthly)}
-                  </span>
+                    {isPaidEntrance
+                      ? "Pagamento Confirmado"
+                      : "Aguardando Pix de Entrada"}
+                  </p>
                 </div>
               </div>
+              {!isPaidEntrance && (
+                <span className="rounded bg-amber-200 px-2 py-1 text-xs font-bold text-amber-800">
+                  PENDENTE
+                </span>
+              )}
             </div>
-          </div>
 
-          <AutoRefreshPayment enrollmentId={enrollment.id} enabled={!isPaid} />
+            <div className="space-y-4">
+              <h3 className="text-muted-foreground border-primary border-l-2 pl-2 text-[10px] font-bold uppercase tracking-widest">
+                Recorrência Coletiva (Equipe)
+              </h3>
 
-          {/* Seção de Pagamento Unificada */}
-          <div className="mt-8 space-y-6">
-            {!isPaid ? (
-              <div
-                className={cn(
-                  "rounded-2xl border-2 p-6 shadow-sm transition-all",
-                  teamCode === "AGUIA"
-                    ? "border-blue-100 bg-blue-50/30"
-                    : "border-red-100 bg-red-50/30",
-                )}
-              >
-                {cobPix ? (
-                  <div className="space-y-6">
-                    <PixQr value={cobPix} title="Pagamento de Entrada" />
-
-                    <div className="space-y-4">
-                      <PixCopyPaste value={cobPix} label="Copia e Cola" />
-
-                      <p className="text-muted-foreground text-[11px] italic leading-relaxed">
-                        * Este Pix realiza o pagamento da entrada e autoriza
-                        automaticamente as próximas mensalidades.
+              {hasMyOwnRecurrence ? (
+                <div
+                  className={cn(
+                    "rounded-2xl border-2 p-6 shadow-md transition-all",
+                    isTeamRecurrenceActive
+                      ? "border-green-200 bg-green-50"
+                      : "bg-primary/5 border-primary/20",
+                  )}
+                >
+                  <div className="mb-6 flex items-center gap-3 rounded-xl border bg-white p-3 shadow-sm">
+                    <span className="text-3xl">🚀</span>
+                    <div>
+                      <p className="text-primary text-balance font-sans text-sm font-black uppercase leading-none tracking-tight">
+                        Você é o Responsável Financeiro
+                      </p>
+                      <p className="text-muted-foreground mt-1 text-[10px] font-bold uppercase">
+                        Autorizando mensalidade de 50 pessoas
                       </p>
                     </div>
                   </div>
-                ) : (
-                  <div className="text-muted-foreground p-4 text-center text-sm italic">
-                    Gerando seu QR Code... por favor, aguarde alguns instantes
-                    ou atualize a página.
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="rounded-2xl border-2 border-green-200 bg-green-50/50 p-6 text-center shadow-sm">
-                <div className="mb-2 text-3xl">✅</div>
-                <h3 className="text-lg font-bold text-green-900">
-                  Pagamento Identificado
-                </h3>
-                <p className="mt-1 text-sm text-green-700">
-                  Sua entrada foi processada com sucesso e sua vaga está
-                  garantida!
-                </p>
-              </div>
-            )}
 
-            {/* Status da Recorrência */}
-            <div className="bg-muted/20 rounded-2xl border p-5">
-              <div className="mb-4 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div
-                    className={cn(
-                      "size-2 rounded-full",
-                      recurrence?.status
-                        ? "animate-pulse bg-green-500"
-                        : "bg-amber-500",
-                    )}
-                  />
-                  <span className="text-sm font-bold uppercase tracking-wider">
-                    Recorrência Automática
-                  </span>
+                  {!isTeamRecurrenceActive ? (
+                    <div className="space-y-6 text-center">
+                      <div className="inline-block w-full rounded-2xl border-2 border-dashed bg-white p-5 shadow-inner">
+                        <p className="text-muted-foreground mb-1 text-[10px] font-bold uppercase">
+                          Total Mensal do Grupo (50x)
+                        </p>
+                        <p className="text-primary font-sans text-4xl font-black tracking-tighter">
+                          {formatBRL(myRecurrence?.valorRec)}
+                        </p>
+                      </div>
+                      <div className="flex flex-col items-center py-2">
+                        <PixQr
+                          value={myRecurrence?.pixCopiaECola || ""}
+                          title="Ativar Equipe Agora"
+                        />
+                      </div>
+                      <div className="space-y-4">
+                        <PixCopyPaste
+                          value={myRecurrence?.pixCopiaECola || ""}
+                          label="Copia e Cola Coletivo"
+                        />
+                        <div className="rounded-xl border border-amber-100 bg-amber-50 p-4 shadow-sm">
+                          <p className="text-[11px] font-bold leading-relaxed text-amber-800">
+                            ⚠️ Este Pix ativa o pagamento automático de toda a
+                            sua equipe. Escaneie apenas uma vez.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-6 text-center">
+                      <div className="mb-3 text-5xl">🎉</div>
+                      <p className="font-sans text-lg font-black uppercase text-green-800">
+                        Equipe Ativada!
+                      </p>
+                      <p className="text-sm font-medium text-green-700">
+                        As mensalidades automáticas estão configuradas com
+                        sucesso.
+                      </p>
+                    </div>
+                  )}
                 </div>
-                {recurrence?.status && (
-                  <span className="rounded bg-green-100 px-2 py-0.5 text-[10px] font-black uppercase text-green-700">
-                    Ativa
-                  </span>
-                )}
-              </div>
-
-              <p className="text-muted-foreground mb-4 text-sm leading-relaxed">
-                {recurrence?.status
-                  ? "Tudo pronto! As próximas parcelas serão cobradas automaticamente no seu Pix conforme o cronograma."
-                  : "Estamos finalizando a configuração da sua mensalidade automática. Isso acontece em instantes após o pagamento da entrada."}
-              </p>
-
-              <div className="flex flex-wrap gap-2">
-                <form
-                  action={refreshRecurrence}
-                  className="min-w-[140px] flex-1"
-                >
-                  <input
-                    type="hidden"
-                    name="enrollmentId"
-                    value={enrollment.id}
-                  />
-                  <button
-                    type="submit"
-                    className="hover:bg-accent w-full rounded-xl border bg-white px-4 py-2.5 text-xs font-bold shadow-sm transition-all active:scale-95"
-                  >
-                    🔄 Atualizar Status
-                  </button>
-                </form>
-
-                <Link
-                  href="/admin/race"
-                  className="min-w-[140px] flex-1 rounded-xl bg-gray-900 px-4 py-2.5 text-center text-xs font-bold text-white shadow-md shadow-gray-200 transition-all hover:bg-gray-800 active:scale-95"
-                >
-                  🏆 Ver Placar Geral
-                </Link>
-              </div>
+              ) : teamRecurrence ? (
+                <div className="rounded-2xl border-2 border-blue-100 bg-blue-50/50 p-6 shadow-sm">
+                  <div className="mb-4 flex items-center gap-3">
+                    <span className="text-3xl">👥</span>
+                    <div>
+                      <p className="font-sans text-sm font-black uppercase leading-none tracking-tight text-blue-900">
+                        Pagamento Centralizado
+                      </p>
+                      <p className="mt-1 text-balance text-xs font-medium italic text-blue-700">
+                        Sua vaga está coberta pelo responsável da equipe
+                      </p>
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-blue-100 bg-white/80 p-4 shadow-sm">
+                    <p className="mb-1 text-[10px] font-bold uppercase text-blue-600">
+                      Líder Atual
+                    </p>
+                    <p className="font-sans text-lg font-black text-blue-900">
+                      {teamRecurrence?.participant?.fullName}
+                    </p>
+                  </div>
+                  <p className="mt-5 rounded-lg border border-blue-100/50 bg-white/40 p-2 text-[11px] font-medium italic leading-relaxed text-blue-800">
+                    {isTeamRecurrenceActive
+                      ? "✅ Plano ativo. Suas mensalidades serão cobradas via líder."
+                      : "⏳ Aguardando ativação final pelo líder acima."}
+                  </p>
+                </div>
+              ) : (
+                <div className="rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50/50 p-10 text-center font-medium italic text-gray-400">
+                  Aguardando definição do Líder da Equipe...
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="mt-8 border-t pt-6">
+          <AutoRefreshPayment
+            enrollmentId={enrollment.id}
+            enabled={!isTeamRecurrenceActive || !isPaidEntrance}
+          />
+
+          <div className="mt-10 flex flex-col gap-3 border-t pt-6">
+            <Link
+              href="/admin/race"
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gray-900 p-4 text-center font-sans text-sm font-bold text-white shadow-xl transition-all hover:bg-gray-800 active:scale-95"
+            >
+              🏆 Ver Placar e Ranking
+            </Link>
             <Link
               href="/enroll"
-              className="border-muted text-muted-foreground hover:border-primary hover:text-primary hover:bg-primary/5 group flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed p-4 text-center text-sm font-bold transition-all"
+              className="text-muted-foreground hover:text-primary py-2 text-center font-sans text-xs font-bold uppercase tracking-widest underline-offset-4 transition-colors hover:underline"
             >
-              <span>✨</span>
-              Fazer nova inscrição para outra pessoa
+              ✨ Fazer outra inscrição
             </Link>
           </div>
         </div>
