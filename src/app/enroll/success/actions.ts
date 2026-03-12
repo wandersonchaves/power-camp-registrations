@@ -61,9 +61,15 @@ export async function refreshRecurrence(formData: FormData) {
     );
   }
 
-  const recGet = await pixAutoClient.rec.get(recurrence.idRec, { txid });
+  // Tenta buscar com txid (J3) ou sem (J2)
+  const recGet = await pixAutoClient.rec.get(
+    recurrence.idRec,
+    txid ? { txid } : undefined,
+  );
 
-  const pixCopiaECola = recGet.dadosQR?.pixCopiaECola ?? null;
+  // Na J2 vem no root, na J3 vem em dadosQR
+  const pixCopiaECola =
+    recGet.pixCopiaECola || recGet.dadosQR?.pixCopiaECola || null;
   const jornada = recGet.dadosQR?.jornada ?? null;
 
   await prisma.$transaction(async (tx) => {
