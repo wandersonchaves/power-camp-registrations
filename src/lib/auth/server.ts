@@ -1,6 +1,6 @@
 // src/lib/auth/server.ts
 import { cookies } from "next/headers";
-import { getServerSession } from "next-auth";
+import { getServerSession } from "next-auth/next";
 
 import { authOptions } from "@/app/api/auth/[...nextauth]/auth-options";
 
@@ -17,10 +17,15 @@ export async function getAuthSession() {
   if (!(await hasNextAuthCookie())) return null;
 
   try {
-    return await getServerSession(authOptions);
-  } catch (err) {
+    const session = await getServerSession(authOptions);
+    return session;
+  } catch {
+    // Erros como "Invalid Compact JWE" acontecem se o NEXTAUTH_SECRET mudar
+    // Retornamos null para tratar o usuário como deslogado sem quebrar o app
     if (process.env.NODE_ENV !== "production") {
-      console.error("[auth] getServerSession failed:", err);
+      console.warn(
+        "[auth] Session invalid or secret mismatch. Redirecting to guest state.",
+      );
     }
     return null;
   }
