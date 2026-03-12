@@ -38,6 +38,7 @@ type Output = {
   cobPixCopiaECola: string | null;
   idRec: string | null;
   recPixCopiaECola: string | null;
+  isTeamCovered?: boolean;
 };
 
 type AttemptTicketPayload = {
@@ -50,10 +51,13 @@ function assertEnv(name: string): string {
   return v;
 }
 
-function normalizeMoney(value: string): string {
-  const raw = String(value).trim().replace(",", ".");
+function normalizeMoney(value: string | number): string {
+  const raw =
+    typeof value === "number"
+      ? String(value)
+      : String(value).trim().replace(",", ".");
   const n = Number(raw);
-  if (!Number.isFinite(n) || n <= 0) throw new Error("Valor inválido.");
+  if (!Number.isFinite(n) || n < 0) throw new Error("Valor inválido.");
   return n.toFixed(2);
 }
 
@@ -81,21 +85,6 @@ function getTxidRevision(payload: Prisma.JsonValue | null | undefined): number {
   return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
 }
 
-function extractCobPixFromAttemptPayload(
-  payload: Prisma.JsonValue | null | undefined,
-): string | null {
-  if (!payload || !isJsonObject(payload)) return null;
-  const cobPayload = payload["cob"];
-  if (
-    !cobPayload ||
-    typeof cobPayload !== "object" ||
-    Array.isArray(cobPayload)
-  )
-    return null;
-  const pix = (cobPayload as Record<string, unknown>)["pixCopiaECola"];
-  return typeof pix === "string" ? pix : null;
-}
-
 function makeContratoEfi(params: {
   inputContrato: string | null | undefined;
   enrollmentId: string;
@@ -119,37 +108,23 @@ function makeContratoEfi(params: {
   return safeDigits.slice(-8).padStart(8, "7");
 }
 
-/**
- * ✅ Gate “ativável no /rec”:
- * - /rec tem visão diferente do /cob; então exigimos:
- *   - status ATIVA
- *   - idade mínima (ex: 2s)
- *   - 2 leituras consecutivas ATIVA
- */
 async function waitCobActivatableForRec(txid: string, budgetMs: number) {
   await waitForCobActive(txid, {
     label: "[EFI J3] wait-cob-activatable-for-rec",
     maxTotalMs: budgetMs,
-
-    maxAttempts: 15,
-    baseDelayMs: 400,
-    maxDelayMs: 4_000,
-    multiplier: 1.6,
-    jitterMs: 300,
-
+    maxAttempts: 10,
+    baseDelayMs: 500,
+    maxDelayMs: 2_500,
+    multiplier: 1.5,
+    jitterMs: 200,
     dedupeTtlMs: 10_000,
-    getCacheTtlMs: 1_500,
-
-    minCobAgeMs: 4_500, // Aumentado para dar tempo de estabilizar no HMG
-    requireConsecutiveActiveReads: 3, // Mais verificações para garantir estabilidade
+    getCacheTtlMs: 1_000,
+    minCobAgeMs: 1_500,
+    requireConsecutiveActiveReads: 1,
     acceptPaidAsUsable: false,
   });
 }
 
-/**
- * ✅ Tenta criar REC usando um txid específico.
- * Se a Efí disser "txid não está ativa", a decisão de “trocar o txid” fica no caller.
- */
 async function tryCreateRecWithTxid(params: {
   txid: string;
   locId: number;
@@ -201,7 +176,6 @@ async function tryCreateRecWithTxid(params: {
       return { rec, recGet };
     } catch (err) {
       if (pixAutoClient.errors.isRecLocAlreadyUsed(err)) {
-        // esse "try" não troca loc aqui; quem chama troca loc/txid em bloco
         throw new AppError(
           "locrec já foi utilizado. Recrie a loc e tente novamente.",
           409,
@@ -212,8 +186,8 @@ async function tryCreateRecWithTxid(params: {
 
       if (pixAutoClient.errors.isRecActivationTxidNotActive(err)) {
         const backoffMs =
-          Math.min(4_500, 900 + attemptN * 850) +
-          Math.floor(Math.random() * 350);
+          Math.min(3_000, 800 + attemptN * 700) +
+          Math.floor(Math.random() * 200);
 
         log("info", "[EFI REC] txid-not-active", {
           txid: params.txid,
@@ -237,10 +211,7 @@ async function tryCreateRecWithTxid(params: {
           );
         }
 
-        const backoffMs =
-          Math.min(3_500, 700 + attemptN * 600) +
-          Math.floor(Math.random() * 300);
-
+        const backoffMs = 1000;
         await new Promise((r) => setTimeout(r, backoffMs));
         continue;
       }
@@ -270,13 +241,6 @@ async function tryCreateRecWithTxid(params: {
   return null;
 }
 
-/**
- * ✅ Jornada 3 com fallback:
- * - cria locrec + cob + espera “ativável no /rec”
- * - tenta criar rec
- * - se /rec insistir em “txid não está ativa” por muito tempo:
- *   -> cria NOVA cob (novo txid) e tenta de novo (2 ou 3 ciclos)
- */
 async function startEfiJourney3WithFallback(params: {
   pixKey: string;
   participant: { cpf: string; fullName: string };
@@ -289,19 +253,17 @@ async function startEfiJourney3WithFallback(params: {
   dataFinal?: string;
   solicitacaoPagador: string;
 
-  cobCycles?: number; // quantas vezes podemos “trocar o txid”
+  cobCycles?: number;
   cobActivatableBudgetMs?: number;
 
   recAttempts?: number;
   recBudgetMs?: number;
 }) {
   const expSeconds = 3600;
-
-  const cobCycles = params.cobCycles ?? 3;
-  const cobActivatableBudgetMs = params.cobActivatableBudgetMs ?? 25_000;
-
-  const recAttempts = params.recAttempts ?? 8;
-  const recBudgetMs = params.recBudgetMs ?? 25_000;
+  const cobCycles = params.cobCycles ?? 2;
+  const cobActivatableBudgetMs = params.cobActivatableBudgetMs ?? 12_000;
+  const recAttempts = params.recAttempts ?? 5;
+  const recBudgetMs = params.recBudgetMs ?? 12_000;
 
   let lastCob: CobResponse | null = null;
   let lastLocrec: { id: number; location?: string | null } | null = null;
@@ -315,11 +277,9 @@ async function startEfiJourney3WithFallback(params: {
       installmentIndex: cycle,
     });
 
-    // 1) locrec
     const locrec = await pixAutoClient.locrec.create();
     lastLocrec = { id: locrec.id, location: locrec.location ?? null };
 
-    // 2) cob (PUT)
     const cob = await pixAutoClient.cob.put(txid, {
       calendario: { expiracao: expSeconds },
       devedor: {
@@ -345,15 +305,12 @@ async function startEfiJourney3WithFallback(params: {
 
     log("info", "[EFI J3] cycle created cob/loc", {
       cycle,
-      cobCycles,
       txid,
       locId: locrec.id,
     });
 
-    // 3) aguarda o txid ficar “ativável” para o /rec
     await waitCobActivatableForRec(txid, cobActivatableBudgetMs);
 
-    // 4) tenta criar rec com esse txid
     const result = await tryCreateRecWithTxid({
       txid,
       locId: locrec.id,
@@ -372,24 +329,18 @@ async function startEfiJourney3WithFallback(params: {
       return { txid, cob, locrec, rec: result.rec, recGet: result.recGet };
     }
 
-    // Se chegou aqui: estourou budget/tentativas com "txid-not-active" (ou simplesmente não convergiu)
-    // -> próximo ciclo cria novo txid
     log("warn", "[EFI J3] rec did not converge; rotating txid", {
       cycle,
-      cobCycles,
       txid,
-      note: "creating a new cob/txid",
     });
   }
 
   throw new AppError(
-    "Falha ao criar recorrência: Efí não aceitou o txid como ATIVA no /v2/rec mesmo após rotação de txid.",
+    "Falha ao criar recorrência coletiva: Efí não ativou o txid a tempo.",
     502,
-    "EFI_REC_CREATE_BUDGET_EXCEEDED",
+    "EFI_REC_CREATE_TIMEOUT",
     {
-      note: "rotated-txid-exhausted",
       lastTxid: String(lastCob?.txid ?? ""),
-      lastCobStatus: String(lastCob?.status ?? ""),
       lastLocId: lastLocrec?.id ?? null,
     },
   );
@@ -400,16 +351,12 @@ export async function createEnrollmentAndStartJourney3UseCase(
 ): Promise<Output> {
   const pixKey = assertEnv("EFI_PIX_KEY");
 
-  const immediateAmount = normalizeMoney(input.immediateAmount);
-  const recurringAmount = normalizeMoney(input.recurringAmount);
-
   const participant = await prisma.participant.findUnique({
     where: { id: input.participantId },
     select: { id: true, cpf: true, fullName: true },
   });
-  if (!participant) {
+  if (!participant)
     throw new AppError("Participant not found", 404, "PARTICIPANT_NOT_FOUND");
-  }
 
   let teamId: string | null = null;
   if (input.teamCode) {
@@ -420,6 +367,17 @@ export async function createEnrollmentAndStartJourney3UseCase(
     if (!team) throw new AppError("Team not found", 404, "TEAM_NOT_FOUND");
     teamId = team.id;
   }
+
+  // 1. Verificar se JÁ EXISTE uma recorrência ativa vinculada especificamente a ESTE participante
+  const myExistingRecurrence = await prisma.pixAutoRecurrence.findFirst({
+    where: {
+      participantId: input.participantId,
+      eventId: input.eventId,
+      status: { in: ["CRIADA", "ATIVA", "APROVADA"] },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { idRec: true, pixCopiaECola: true },
+  });
 
   const enrollment = await prisma.enrollment.upsert({
     where: {
@@ -446,52 +404,29 @@ export async function createEnrollmentAndStartJourney3UseCase(
     eventId: input.eventId,
   });
 
-  // Se confirmado, retorna o que já existe
-  if (enrollment.status === "CONFIRMED") {
-    const attempt = await prisma.initialPaymentAttempt.findUnique({
-      where: { enrollmentId: enrollment.id },
-      select: { txid: true, payload: true },
-    });
-
-    const rec = await prisma.pixAutoRecurrence.findFirst({
-      where: { eventId: input.eventId, participantId: input.participantId },
-      orderBy: { createdAt: "desc" },
-      select: { idRec: true, pixCopiaECola: true },
-    });
-
-    return {
-      enrollmentId: enrollment.id,
-      txid: attempt?.txid ?? "",
-      cobPixCopiaECola: extractCobPixFromAttemptPayload(attempt?.payload),
-      idRec: rec?.idRec ?? null,
-      recPixCopiaECola: rec?.pixCopiaECola ?? null,
-    };
-  }
-
-  // Idempotência por contrato (regra Efí)
-  const existingByContrato = await prisma.pixAutoRecurrence.findFirst({
-    where: { contrato, status: { in: ["CRIADA", "APROVADA"] } },
-    orderBy: { createdAt: "desc" },
-    select: { idRec: true },
-  });
-
-  if (existingByContrato?.idRec) {
-    const recFull = await pixAutoClient.rec.get(existingByContrato.idRec);
+  // Se já tem recorrência própria, retorna ela
+  if (myExistingRecurrence?.idRec) {
     return {
       enrollmentId: enrollment.id,
       txid: "",
       cobPixCopiaECola: null,
-      idRec: existingByContrato.idRec,
-      recPixCopiaECola: recFull.dadosQR?.pixCopiaECola ?? null,
+      idRec: myExistingRecurrence.idRec,
+      recPixCopiaECola: myExistingRecurrence.pixCopiaECola,
     };
   }
 
-  // idempotency key do plano (não depende de txid)
+  // ✅ REGRAS FINANCEIRAS: Base de 18.30 por pessoa * 50 pessoas = 915.00
+  const immediateAmount = normalizeMoney(input.immediateAmount);
+  const individualRecurring = 18.3;
+  const teamRecurringAmount = normalizeMoney(individualRecurring * 50); // Resulta em "915.00"
+
+  // Se confirmado mas sem recorrência (seu caso), continua para gerar a recorrência
+
   const paymentIdempotencyKey = sha256(
     [
       enrollment.id,
       immediateAmount,
-      recurringAmount,
+      teamRecurringAmount,
       input.periodicidade,
       input.dataInicial,
       input.dataFinal ?? "",
@@ -502,23 +437,18 @@ export async function createEnrollmentAndStartJourney3UseCase(
 
   const existingAttempt = await prisma.initialPaymentAttempt.findUnique({
     where: { enrollmentId: enrollment.id },
-    select: {
-      id: true,
-      payload: true,
-      idempotencyKey: true,
-      paidAt: true,
-    },
+    select: { id: true, payload: true, idempotencyKey: true, paidAt: true },
   });
 
   let txidRevision = getTxidRevision(existingAttempt?.payload);
-
-  const planChanged =
+  if (
     existingAttempt &&
     !existingAttempt.paidAt &&
     existingAttempt.idempotencyKey &&
-    existingAttempt.idempotencyKey !== paymentIdempotencyKey;
-
-  if (planChanged) txidRevision += 1;
+    existingAttempt.idempotencyKey !== paymentIdempotencyKey
+  ) {
+    txidRevision += 1;
+  }
 
   const attempt = await prisma.initialPaymentAttempt.upsert({
     where: { enrollmentId: enrollment.id },
@@ -559,7 +489,6 @@ export async function createEnrollmentAndStartJourney3UseCase(
       where: { id: attempt.id },
       select: { payload: true },
     });
-
     await prisma.initialPaymentAttempt.update({
       where: { id: attempt.id },
       data: {
@@ -582,41 +511,33 @@ export async function createEnrollmentAndStartJourney3UseCase(
             dataInicial: input.dataInicial,
             dataFinal: input.dataFinal ?? null,
             immediateAmount,
-            recurringAmount,
+            recurringAmount: teamRecurringAmount,
           },
         }),
       },
     });
   };
 
-  // ===== Jornada 3 com fallback de rotação de txid =====
-  const solicitacaoPagador = input.solicitacaoPagador ?? "Pagamento inicial";
+  const solicitacaoPagador = "Ativação recorrente equipe (50 pessoas)";
 
   const { txid, cob, locrec, rec, recGet } = await startEfiJourney3WithFallback(
     {
       pixKey,
       participant: { cpf: participant.cpf, fullName: participant.fullName },
       immediateAmount,
-      recurringAmount,
+      recurringAmount: teamRecurringAmount,
       contrato,
       objeto: input.objeto ?? null,
       periodicidade: input.periodicidade,
       dataInicial: input.dataInicial,
       dataFinal: input.dataFinal,
       solicitacaoPagador,
-
-      cobCycles: 3,
-      cobActivatableBudgetMs: 25_000,
-
-      recAttempts: 8,
-      recBudgetMs: 25_000,
+      cobCycles: 2,
+      cobActivatableBudgetMs: 12_000,
+      recAttempts: 5,
+      recBudgetMs: 12_000,
     },
   );
-  console.log("🚀 ~ createEnrollmentAndStartJourney3UseCase ~ recGet:", recGet);
-  console.log("🚀 ~ createEnrollmentAndStartJourney3UseCase ~ rec:", rec);
-  console.log("🚀 ~ createEnrollmentAndStartJourney3UseCase ~ locrec:", locrec);
-  console.log("🚀 ~ createEnrollmentAndStartJourney3UseCase ~ cob:", cob);
-  console.log("🚀 ~ createEnrollmentAndStartJourney3UseCase ~ txid:", txid);
 
   await persistAttempt({ txid, cob, locrec, rec, recGet });
 
@@ -629,10 +550,9 @@ export async function createEnrollmentAndStartJourney3UseCase(
         input.periodicidade,
         input.dataInicial,
         input.dataFinal ?? "",
-        recurringAmount,
+        teamRecurringAmount,
       ].join("|"),
     );
-
     await tx.pixAutoRecurrence.upsert({
       where: { idempotencyKey: recIdempotencyKey },
       update: {
@@ -643,7 +563,7 @@ export async function createEnrollmentAndStartJourney3UseCase(
         jornada: recGet.dadosQR?.jornada ?? "JORNADA_3",
         pixCopiaECola: recGet.dadosQR?.pixCopiaECola ?? null,
         firstCobTxid: txid,
-        valorRec: recurringAmount,
+        valorRec: teamRecurringAmount,
         periodicidade: input.periodicidade,
         dataInicial: new Date(`${input.dataInicial}T00:00:00.000Z`),
         dataFinal: input.dataFinal
@@ -659,7 +579,7 @@ export async function createEnrollmentAndStartJourney3UseCase(
         participantId: input.participantId,
         idRec: rec.idRec,
         status: recGet.status ?? "CRIADA",
-        valorRec: recurringAmount,
+        valorRec: teamRecurringAmount,
         periodicidade: input.periodicidade,
         dataInicial: new Date(`${input.dataInicial}T00:00:00.000Z`),
         dataFinal: input.dataFinal
@@ -673,7 +593,7 @@ export async function createEnrollmentAndStartJourney3UseCase(
         pixCopiaECola: recGet.dadosQR?.pixCopiaECola ?? null,
         firstCobTxid: txid,
         payload: asInputJson({
-          createdFrom: "journey3/enroll",
+          createdFrom: "journey3/enroll/manual-leader",
           activationTxid: txid,
           locrec,
           rec,
@@ -683,19 +603,10 @@ export async function createEnrollmentAndStartJourney3UseCase(
     });
   });
 
-  log("info", "Enrollment journey3 started", {
-    enrollmentId: enrollment.id,
-    txid,
-    idRec: rec.idRec,
-  });
-
   return {
     enrollmentId: enrollment.id,
     txid,
-    // Em Jornada 3, o QR Code de ativação da recorrência já engloba o valor da cobrança inicial.
-    // Exibir o QR da cob (cob.pixCopiaECola) é um erro comum que deixa a recorrência orfã.
-    cobPixCopiaECola:
-      recGet.dadosQR?.pixCopiaECola || cob.pixCopiaECola || null,
+    cobPixCopiaECola: recGet.dadosQR?.pixCopiaECola || null,
     idRec: rec.idRec,
     recPixCopiaECola: recGet.dadosQR?.pixCopiaECola || null,
   };
