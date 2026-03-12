@@ -132,4 +132,25 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
+
+  /**
+   * ✅ Silencia erros barulhentos de JWT no console do servidor.
+   * Evita o crash visual quando o NEXTAUTH_SECRET muda em desenvolvimento.
+   */
+  logger: {
+    error(code, metadata) {
+      if (code === "JWT_SESSION_ERROR" || code === "SESSION_ERROR") {
+        return;
+      }
+      console.error(`[next-auth][error][${code}]`, metadata);
+    },
+    warn(code) {
+      console.warn(`[next-auth][warn][${code}]`);
+    },
+    debug(code, metadata) {
+      if (process.env.NODE_ENV !== "production") {
+        console.log(`[next-auth][debug][${code}]`, metadata);
+      }
+    },
+  },
 };
