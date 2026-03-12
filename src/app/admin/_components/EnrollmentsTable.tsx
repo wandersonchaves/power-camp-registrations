@@ -1,3 +1,10 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { Crown, Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+
+import { setTeamLeaderAction } from "../_actions/set-team-leader";
 import type { EnrollmentRow } from "../_data/admin.types";
 
 function fmtDate(d: Date | null) {
@@ -9,6 +16,35 @@ function fmtDate(d: Date | null) {
 }
 
 export function EnrollmentsTable(props: { items: EnrollmentRow[] }) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [loadingId, setLoadingId] = useState<string | null>(null);
+
+  const handleSetLeader = (enrollmentId: string) => {
+    if (
+      !confirm(
+        "Tem certeza que deseja definir este participante como LÍDER FINANCEIRO da equipe? Isso cancelará qualquer QR Code anterior da equipe.",
+      )
+    )
+      return;
+
+    setLoadingId(enrollmentId);
+    startTransition(async () => {
+      try {
+        const res = await setTeamLeaderAction(enrollmentId);
+        if (res.success) {
+          router.push(res.url);
+        }
+      } catch (err: unknown) {
+        const errorMsg =
+          err instanceof Error ? err.message : "Erro desconhecido";
+        alert("Erro ao definir líder: " + errorMsg);
+      } finally {
+        setLoadingId(null);
+      }
+    });
+  };
+
   return (
     <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
       <div className="overflow-x-auto">
@@ -19,8 +55,7 @@ export function EnrollmentsTable(props: { items: EnrollmentRow[] }) {
               <th className="px-4 py-3 text-left">Equipe</th>
               <th className="px-4 py-3 text-left">Inscrição</th>
               <th className="px-4 py-3 text-left">Pagamento inicial</th>
-              <th className="px-4 py-3 text-left">TXID</th>
-              <th className="px-4 py-3 text-left">Confirmado em</th>
+              <th className="px-4 py-3 text-left">Ações</th>
             </tr>
           </thead>
           <tbody>
@@ -58,11 +93,23 @@ export function EnrollmentsTable(props: { items: EnrollmentRow[] }) {
                     <span className="text-gray-500">-</span>
                   )}
                 </td>
-                <td className="px-4 py-3 font-mono text-xs">
-                  {r.initialPayment?.txid ?? "-"}
-                </td>
-                <td className="px-4 py-3 text-xs text-gray-700">
-                  {fmtDate(r.confirmedAt)}
+                <td className="px-4 py-3 text-xs">
+                  {r.teamName &&
+                    r.teamName !== "-" &&
+                    r.status === "CONFIRMED" && (
+                      <button
+                        onClick={() => handleSetLeader(r.enrollmentId)}
+                        disabled={isPending}
+                        className="flex items-center gap-1 rounded-lg border bg-amber-50 px-2 py-1.5 font-semibold text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-50"
+                      >
+                        {loadingId === r.enrollmentId ? (
+                          <Loader2 className="size-3 animate-spin" />
+                        ) : (
+                          <Crown className="size-3" />
+                        )}
+                        Tornar Líder
+                      </button>
+                    )}
                 </td>
               </tr>
             ))}
