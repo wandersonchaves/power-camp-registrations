@@ -5,7 +5,8 @@ import type { Prisma } from "@prisma/client";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
-import { AppError } from "@/lib/http-errors";
+import { sha256 } from "@/lib/crypto";
+import { AppError, toAppError } from "@/lib/http-errors";
 import { prisma } from "@/lib/prisma";
 import { createEnrollmentAndStartJourney3UseCase } from "@/use-cases/enrollment/create-enrollment-and-start-journey3.use-case";
 
@@ -168,119 +169,132 @@ function resolveTeamCode(params: {
 }
 
 export async function startJourney3(formData: FormData) {
-  const parsed = schema.parse({
-    ticketType: String(formData.get("ticketType") ?? ""),
-    teamCode: String(formData.get("teamCode") ?? ""), // ✅ agora lê do form
-    fullName: String(formData.get("fullName") ?? ""),
-    cpf: String(formData.get("cpf") ?? ""),
-    email: String(formData.get("email") ?? ""),
-    phone: String(formData.get("phone") ?? ""),
-    installments: formData.get("installments"),
-  });
-
-  const eventId = requireEnv("POWERCAMP_EVENT_ID");
-  const ownerUserId = assertEnv("POWERCAMP_OWNER_USER_ID");
-
-  const antecipadaTotal = process.env.POWERCAMP_ANTECIPADA_TOTAL ?? "250.00";
-  const loteZeroTotal = process.env.POWERCAMP_LOTE_ZERO_TOTAL ?? "0.00";
-
-  await assertEventExists(eventId);
-
-  const cpf = normalizeCpf(parsed.cpf);
-
-  const ticketTotal =
-    parsed.ticketType === "ANTECIPADA" ? antecipadaTotal : loteZeroTotal;
-
-  const plan = computeEqualInstallmentsPlan({
-    total: ticketTotal,
-    installments: parsed.installments,
-  });
-
-  // ✅ equipe final (AGUIA/LEAO ou null)
-  const teamCode = resolveTeamCode({
-    ticketType: parsed.ticketType,
-    formTeamCode: typeof parsed.teamCode === "string" ? parsed.teamCode : "",
-  });
-
-  // Participant idempotente por (eventId, cpf)
-  const participant = await prisma.participant.upsert({
-    where: { eventId_cpf: { eventId, cpf } },
-    update: {
-      fullName: parsed.fullName,
-      ...(parsed.email ? { email: parsed.email } : {}),
-      ...(parsed.phone ? { phone: parsed.phone } : {}),
-    },
-    create: {
-      eventId,
-      userId: ownerUserId,
-      cpf,
-      fullName: parsed.fullName,
-      ...(parsed.email ? { email: parsed.email } : {}),
-      ...(parsed.phone ? { phone: parsed.phone } : {}),
-    },
-    select: { id: true },
-  });
-
-  // janela da recorrência (n-1 cobranças a partir do próximo mês)
-  const firstRecDate = addMonthsUTC(new Date(), 1);
-  const dataInicial = toYYYYMMDDUTC(firstRecDate);
-  const remaining = plan.recurringCount;
-
-  const dataFinal =
-    remaining > 1
-      ? toYYYYMMDDUTC(addMonthsUTC(firstRecDate, remaining - 1))
-      : undefined;
-
-  const out = await createEnrollmentAndStartJourney3UseCase({
-    eventId,
-    participantId: participant.id,
-    teamCode, // ✅ agora vem do usuário
-
-    immediateAmount: plan.firstPaymentAmount,
-    recurringAmount: plan.isSinglePayment
-      ? plan.firstPaymentAmount
-      : plan.recurringAmount,
-
-    // ⚠️ contrato: mantenha sua estratégia atual (você já ajustou isso antes)
-    contrato: `ENROLLMENT:${eventId}:${participant.id}`,
-    objeto:
-      parsed.ticketType === "ANTECIPADA"
-        ? "PowerCamp 2027 - Antecipada"
-        : "PowerCamp 2027 - Lote Zero",
-    periodicidade: "MENSAL",
-    dataInicial,
-    dataFinal,
-
-    solicitacaoPagador:
-      parsed.ticketType === "ANTECIPADA"
-        ? `PowerCamp 2027 - Antecipada (${plan.installments}x)`
-        : `PowerCamp 2027 - Lote Zero (${plan.installments}x)`,
-  });
-
-  // Enriquecer attempt.payload com dados do plano/ticket (mantendo o que já existe)
-  const attempt = await prisma.initialPaymentAttempt.findFirst({
-    where: { enrollmentId: out.enrollmentId },
-    select: { id: true, payload: true },
-    orderBy: { createdAt: "desc" },
-  });
-
-  if (attempt) {
-    const prev = jsonObject(attempt.payload) as AttemptPayload;
-
-    await prisma.initialPaymentAttempt.update({
-      where: { id: attempt.id },
-      data: {
-        payload: {
-          ...prev,
-          ticketType: parsed.ticketType,
-          teamCode, // ✅ persiste o que o usuário escolheu
-          plan,
-        } satisfies AttemptPayload,
-      },
+  try {
+    const parsed = schema.parse({
+      ticketType: String(formData.get("ticketType") ?? ""),
+      teamCode: String(formData.get("teamCode") ?? ""),
+      fullName: String(formData.get("fullName") ?? ""),
+      cpf: String(formData.get("cpf") ?? ""),
+      email: String(formData.get("email") ?? ""),
+      phone: String(formData.get("phone") ?? ""),
+      installments: formData.get("installments"),
     });
-  }
 
-  redirect(
-    `/enroll/success?enrollmentId=${encodeURIComponent(out.enrollmentId)}`,
-  );
+    const eventId = requireEnv("POWERCAMP_EVENT_ID");
+    const ownerUserId = assertEnv("POWERCAMP_OWNER_USER_ID");
+
+    const antecipadaTotal = process.env.POWERCAMP_ANTECIPADA_TOTAL ?? "250.00";
+    const loteZeroTotal = process.env.POWERCAMP_LOTE_ZERO_TOTAL ?? "0.00";
+
+    await assertEventExists(eventId);
+
+    const cpf = normalizeCpf(parsed.cpf);
+
+    const ticketTotal =
+      parsed.ticketType === "ANTECIPADA" ? antecipadaTotal : loteZeroTotal;
+
+    const plan = computeEqualInstallmentsPlan({
+      total: ticketTotal,
+      installments: parsed.installments,
+    });
+
+    const teamCode = resolveTeamCode({
+      ticketType: parsed.ticketType,
+      formTeamCode: typeof parsed.teamCode === "string" ? parsed.teamCode : "",
+    });
+
+    const contratoSeed = `${eventId}|${parsed.cpf}|${parsed.ticketType}`;
+    const contratoHash = sha256(contratoSeed);
+    const contrato = contratoHash.replace(/\D/g, "").slice(-8).padStart(8, "7");
+
+    const participant = await prisma.participant.upsert({
+      where: { eventId_cpf: { eventId, cpf } },
+      update: {
+        fullName: parsed.fullName,
+        ...(parsed.email ? { email: parsed.email } : {}),
+        ...(parsed.phone ? { phone: parsed.phone } : {}),
+      },
+      create: {
+        eventId,
+        userId: ownerUserId,
+        cpf,
+        fullName: parsed.fullName,
+        ...(parsed.email ? { email: parsed.email } : {}),
+        ...(parsed.phone ? { phone: parsed.phone } : {}),
+      },
+      select: { id: true },
+    });
+
+    const firstRecDate = addMonthsUTC(new Date(), 1);
+    const dataInicial = toYYYYMMDDUTC(firstRecDate);
+    const remaining = plan.recurringCount;
+
+    const dataFinal =
+      remaining > 1
+        ? toYYYYMMDDUTC(addMonthsUTC(firstRecDate, remaining - 1))
+        : undefined;
+
+    const out = await createEnrollmentAndStartJourney3UseCase({
+      eventId,
+      participantId: participant.id,
+      teamCode,
+
+      immediateAmount: plan.firstPaymentAmount,
+      recurringAmount: plan.isSinglePayment
+        ? plan.firstPaymentAmount
+        : plan.recurringAmount,
+
+      contrato,
+      objeto:
+        parsed.ticketType === "ANTECIPADA"
+          ? "PowerCamp 2027 - Antecipada"
+          : "PowerCamp 2027 - Lote Zero",
+      periodicidade: "MENSAL",
+      dataInicial,
+      dataFinal,
+
+      solicitacaoPagador:
+        parsed.ticketType === "ANTECIPADA"
+          ? `PowerCamp 2027 - Antecipada (${plan.installments}x)`
+          : `PowerCamp 2027 - Lote Zero (${plan.installments}x)`,
+    });
+
+    const attempt = await prisma.initialPaymentAttempt.findFirst({
+      where: { enrollmentId: out.enrollmentId },
+      select: { id: true, payload: true },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (attempt) {
+      const prev = jsonObject(attempt.payload) as AttemptPayload;
+
+      await prisma.initialPaymentAttempt.update({
+        where: { id: attempt.id },
+        data: {
+          payload: {
+            ...prev,
+            ticketType: parsed.ticketType,
+            teamCode,
+            plan,
+          } satisfies AttemptPayload,
+        },
+      });
+    }
+
+    redirect(
+      `/enroll/success?enrollmentId=${encodeURIComponent(out.enrollmentId)}`,
+    );
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("NEXT_REDIRECT")) {
+      throw e;
+    }
+
+    const err = toAppError(e);
+    console.error("[startJourney3] Error:", err);
+
+    // Como Server Actions em formularios não retornam valor facilmente para o cliente
+    // sem bibliotecas extras (como next-safe-action), pelo menos logamos no servidor.
+    // O Next.js exibirá o overlay de erro em dev, mas não o "Failed to fetch" genérico.
+    throw err;
+  }
 }
