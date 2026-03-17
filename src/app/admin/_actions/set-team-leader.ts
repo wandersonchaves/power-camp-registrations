@@ -58,8 +58,8 @@ export async function setTeamLeaderAction(enrollmentId: string) {
     // 2. JORNADA 2 - PASSO 1: Criar o Location (Obrigatório para gerar QR Code)
     const locrec = await pixAutoClient.locrec.create();
 
-    // 3. Parâmetros financeiros (915.00)
-    const teamRecurringAmount = (18.3 * 50).toFixed(2);
+    // 2. Parâmetros financeiros (933.30)
+    const teamRecurringAmount = (18.3 * 51).toFixed(2);
     const dataInicial = toYYYYMMDDUTC(addMonthsUTC(new Date(), 1));
     const contrato = makeUniqueContratoEfi({
       enrollmentId: enrollment.id,

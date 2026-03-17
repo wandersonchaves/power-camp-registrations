@@ -18,23 +18,15 @@ function pickString(v: string | string[] | undefined) {
 
 export const runtime = "nodejs";
 
-/**
- * Converte string de dinheiro (915.00 ou 915,00) em número corretamente.
- */
 function moneyToNumber(v: unknown): number | null {
   if (typeof v === "number" && Number.isFinite(v)) return v;
   if (typeof v === "string") {
     let s = v.trim();
-    // Se tiver vírgula e ponto (ex: 1.250,00), remove ponto e troca vírgula por ponto
     if (s.includes(",") && s.includes(".")) {
       s = s.replace(/\./g, "").replace(",", ".");
-    }
-    // Se tiver apenas vírgula (ex: 915,00), troca por ponto
-    else if (s.includes(",")) {
+    } else if (s.includes(",")) {
       s = s.replace(",", ".");
     }
-    // Se for apenas número com ponto (ex: 915.00), mantém como está
-
     const n = Number(s);
     return Number.isFinite(n) ? n : null;
   }
@@ -116,6 +108,11 @@ export default async function EnrollSuccessPage(props: {
   const isPaidEntrance = Boolean(enrollment.initialPayment?.paidAt);
   const teamCode = enrollment.team?.code as TeamCode | undefined;
 
+  const myOwnRecurringValue = myRecurrence
+    ? (moneyToNumber(myRecurrence.valorRec) ?? 0)
+    : 0;
+  const isLeader = myRecurrence && myOwnRecurringValue > 18.3;
+
   return (
     <main className="min-h-screen bg-gray-50 pb-20 font-sans text-gray-900">
       {teamCode && (
@@ -145,7 +142,7 @@ export default async function EnrollSuccessPage(props: {
             <h1 className="text-3xl font-black tracking-tight">
               {isPaidEntrance ? "Inscrição Confirmada!" : "Inscrição Gerada!"}
             </h1>
-            <p className="text-muted-foreground mt-1 text-balance text-sm font-medium italic">
+            <p className="text-muted-foreground mt-1 text-sm font-medium italic">
               Arena {enrollment.team?.name || "PowerCamp"}.
             </p>
           </div>
@@ -160,7 +157,7 @@ export default async function EnrollSuccessPage(props: {
               </span>
             </div>
 
-            {/* Status da Entrada */}
+            {/* Status da Entrada Individual */}
             <div
               className={cn(
                 "flex items-center justify-between rounded-2xl border p-4 shadow-sm transition-all",
@@ -196,10 +193,11 @@ export default async function EnrollSuccessPage(props: {
 
             <div className="space-y-4">
               <h3 className="text-muted-foreground border-primary border-l-2 pl-2 text-[10px] font-bold uppercase tracking-widest">
-                Recorrência Coletiva (Equipe)
+                Recorrência Mensal
               </h3>
 
               {hasMyOwnRecurrence ? (
+                // VISÃO DE LÍDER OU INDIVIDUAL
                 <div
                   className={cn(
                     "rounded-2xl border-2 p-6 shadow-md transition-all",
@@ -209,13 +207,17 @@ export default async function EnrollSuccessPage(props: {
                   )}
                 >
                   <div className="mb-6 flex items-center gap-3 rounded-xl border bg-white p-3 shadow-sm">
-                    <span className="text-3xl">🚀</span>
+                    <span className="text-3xl">{isLeader ? "🚀" : "👤"}</span>
                     <div>
-                      <p className="text-primary text-balance font-sans text-sm font-black uppercase leading-none tracking-tight">
-                        Você é o Responsável Financeiro
+                      <p className="text-primary text-sm font-black uppercase tracking-tight">
+                        {isLeader
+                          ? "Responsável Financeiro Equipe"
+                          : "Pagamento Individual Ativo"}
                       </p>
                       <p className="text-muted-foreground mt-1 text-[10px] font-bold uppercase">
-                        Autorizando mensalidade de 50 pessoas
+                        {isLeader
+                          ? "Autorizando mensalidade de 51 pessoas"
+                          : "Você autoriza apenas sua própria mensalidade"}
                       </p>
                     </div>
                   </div>
@@ -224,27 +226,28 @@ export default async function EnrollSuccessPage(props: {
                     <div className="space-y-6 text-center">
                       <div className="inline-block w-full rounded-2xl border-2 border-dashed bg-white p-5 shadow-inner">
                         <p className="text-muted-foreground mb-1 text-[10px] font-bold uppercase">
-                          Total Mensal do Grupo (50x)
+                          Valor Total do seu Plano
                         </p>
-                        <p className="text-primary font-sans text-4xl font-black tracking-tighter">
+                        <p className="text-primary text-4xl font-black tracking-tighter">
                           {formatBRL(myRecurrence?.valorRec)}
                         </p>
                       </div>
                       <div className="flex flex-col items-center py-2">
                         <PixQr
                           value={myRecurrence?.pixCopiaECola || ""}
-                          title="Ativar Equipe Agora"
+                          title="Ativar Mensalidade Agora"
                         />
                       </div>
                       <div className="space-y-4">
                         <PixCopyPaste
                           value={myRecurrence?.pixCopiaECola || ""}
-                          label="Copia e Cola Coletivo"
+                          label="Copia e Cola"
                         />
                         <div className="rounded-xl border border-amber-100 bg-amber-50 p-4 shadow-sm">
-                          <p className="text-[11px] font-bold leading-relaxed text-amber-800">
-                            ⚠️ Este Pix ativa o pagamento automático de toda a
-                            sua equipe. Escaneie apenas uma vez.
+                          <p className="text-center text-[11px] font-bold leading-relaxed text-amber-800">
+                            {isLeader
+                              ? "⚠️ Este Pix ativa o pagamento automático de toda a sua equipe. Escaneie apenas uma vez."
+                              : "⚠️ Este Pix ativa o débito automático mensal no seu aplicativo do banco."}
                           </p>
                         </div>
                       </div>
@@ -252,26 +255,26 @@ export default async function EnrollSuccessPage(props: {
                   ) : (
                     <div className="py-6 text-center">
                       <div className="mb-3 text-5xl">🎉</div>
-                      <p className="font-sans text-lg font-black uppercase text-green-800">
-                        Equipe Ativada!
+                      <p className="text-lg font-black uppercase text-green-800">
+                        Recorrência Ativada!
                       </p>
                       <p className="text-sm font-medium text-green-700">
-                        As mensalidades automáticas estão configuradas com
-                        sucesso.
+                        Suas mensalidades automáticas estão configuradas.
                       </p>
                     </div>
                   )}
                 </div>
               ) : teamRecurrence ? (
+                // VISÃO DE MEMBRO (COBERTO PELO LÍDER)
                 <div className="rounded-2xl border-2 border-blue-100 bg-blue-50/50 p-6 shadow-sm">
                   <div className="mb-4 flex items-center gap-3">
                     <span className="text-3xl">👥</span>
                     <div>
-                      <p className="font-sans text-sm font-black uppercase leading-none tracking-tight text-blue-900">
-                        Pagamento Centralizado
+                      <p className="text-sm font-black uppercase leading-none tracking-tight text-blue-900">
+                        Plano de Equipe
                       </p>
-                      <p className="mt-1 text-balance text-xs font-medium italic text-blue-700">
-                        Sua vaga está coberta pelo responsável da equipe
+                      <p className="mt-1 text-xs font-medium italic text-blue-700">
+                        Sua vaga está vinculada ao líder da equipe
                       </p>
                     </div>
                   </div>
@@ -279,7 +282,7 @@ export default async function EnrollSuccessPage(props: {
                     <p className="mb-1 text-[10px] font-bold uppercase text-blue-600">
                       Líder Atual
                     </p>
-                    <p className="font-sans text-lg font-black text-blue-900">
+                    <p className="text-lg font-black text-blue-900">
                       {teamRecurrence?.participant?.fullName}
                     </p>
                   </div>
@@ -291,7 +294,7 @@ export default async function EnrollSuccessPage(props: {
                 </div>
               ) : (
                 <div className="rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50/50 p-10 text-center font-medium italic text-gray-400">
-                  Aguardando definição do Líder da Equipe...
+                  Aguardando geração do QR Code de grupo...
                 </div>
               )}
             </div>
