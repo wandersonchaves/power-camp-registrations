@@ -25,6 +25,7 @@ const schema = z.object({
   email: z.string().email().optional().or(z.literal("")),
   phone: z.string().optional().or(z.literal("")),
   installments: z.coerce.number().int().min(1).max(12),
+  paymentMode: z.enum(["INDIVIDUAL", "COLLECTIVE"]).default("COLLECTIVE"),
 });
 
 type PlanPayload = {
@@ -178,8 +179,8 @@ export async function startJourney3(formData: FormData) {
       email: String(formData.get("email") ?? ""),
       phone: String(formData.get("phone") ?? ""),
       installments: formData.get("installments"),
+      paymentMode: String(formData.get("paymentMode") ?? "COLLECTIVE"),
     });
-
     const eventId = requireEnv("POWERCAMP_EVENT_ID");
     const ownerUserId = assertEnv("POWERCAMP_OWNER_USER_ID");
 
@@ -238,6 +239,7 @@ export async function startJourney3(formData: FormData) {
       eventId,
       participantId: participant.id,
       teamCode,
+      paymentMode: parsed.paymentMode,
 
       immediateAmount: plan.firstPaymentAmount,
       recurringAmount: plan.isSinglePayment
