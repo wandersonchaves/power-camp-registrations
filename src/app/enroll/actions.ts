@@ -204,10 +204,6 @@ export async function startJourney3(formData: FormData) {
       formTeamCode: typeof parsed.teamCode === "string" ? parsed.teamCode : "",
     });
 
-    const contratoSeed = `${eventId}|${parsed.cpf}|${parsed.ticketType}`;
-    const contratoHash = sha256(contratoSeed);
-    const contrato = contratoHash.replace(/\D/g, "").slice(-8).padStart(8, "7");
-
     const participant = await prisma.participant.upsert({
       where: { eventId_cpf: { eventId, cpf } },
       update: {
@@ -234,6 +230,12 @@ export async function startJourney3(formData: FormData) {
       remaining > 1
         ? toYYYYMMDDUTC(addMonthsUTC(firstRecDate, remaining - 1))
         : undefined;
+
+    const contratoSeed = `${eventId}|${participant.id}|${Date.now()}`;
+    const contrato = sha256(contratoSeed)
+      .replace(/\D/g, "")
+      .slice(-8)
+      .padStart(8, "7");
 
     const out = await createEnrollmentAndStartJourney3UseCase({
       eventId,

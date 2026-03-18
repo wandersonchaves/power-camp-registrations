@@ -56,7 +56,7 @@ function normalizeMoney(value: string | number): string {
 
 async function waitCobActivatableForRec(txid: string, budgetMs: number) {
   await waitForCobActive(txid, {
-    label: "[EFI J3] wait-cob-activatable-for-rec",
+    label: "[EFI J3] wait-cob-activatable",
     maxTotalMs: budgetMs,
     maxAttempts: 10,
     baseDelayMs: 500,
@@ -69,72 +69,6 @@ async function waitCobActivatableForRec(txid: string, budgetMs: number) {
     requireConsecutiveActiveReads: 1,
     acceptPaidAsUsable: false,
   });
-}
-
-async function tryCreateRecWithTxid(params: {
-  txid: string;
-  locId: number;
-  participant: { cpf: string; fullName: string };
-  contrato: string;
-  objeto?: string | null;
-  periodicidade: Input["periodicidade"];
-  dataInicial: string;
-  dataFinal?: string;
-  recurringAmount: string;
-  recAttempts: number;
-  recBudgetMs: number;
-}) {
-  const start = Date.now();
-
-  const recBodyBase = {
-    vinculo: {
-      contrato: params.contrato,
-      devedor: {
-        cpf: params.participant.cpf,
-        nome: params.participant.fullName,
-      },
-      ...(params.objeto ? { objeto: params.objeto } : {}),
-    },
-    calendario: {
-      dataInicial: params.dataInicial,
-      ...(params.dataFinal ? { dataFinal: params.dataFinal } : {}),
-      periodicidade: params.periodicidade,
-    },
-    valor: { valorRec: params.recurringAmount },
-    politicaRetentativa: "NAO_PERMITE" as const,
-  };
-
-  for (let attemptN = 1; attemptN <= params.recAttempts; attemptN++) {
-    const elapsed = Date.now() - start;
-    if (elapsed > params.recBudgetMs) break;
-
-    try {
-      const rec = await pixAutoClient.rec.create({
-        ...recBodyBase,
-        loc: params.locId,
-        ativacao: { dadosJornada: { txid: params.txid } },
-      });
-
-      const recGet = await pixAutoClient.rec.get(rec.idRec, {
-        txid: params.txid,
-      });
-      return { rec, recGet };
-    } catch (err) {
-      if (pixAutoClient.errors.isRecLocAlreadyUsed(err)) {
-        throw new AppError(
-          "locrec já foi utilizado.",
-          409,
-          "EFI_REC_LOC_ALREADY_USED",
-        );
-      }
-      if (pixAutoClient.errors.isRecActivationTxidNotActive(err)) {
-        await new Promise((r) => setTimeout(r, 1500));
-        continue;
-      }
-      throw err;
-    }
-  }
-  return null;
 }
 
 async function startEfiJourney3WithFallback(params: {
@@ -150,10 +84,13 @@ async function startEfiJourney3WithFallback(params: {
   solicitacaoPagador: string;
 }) {
   const expSeconds = 3600;
+  // Adicionamos Date.now() para garantir que cada tentativa de J3 gere um txid único na Efí
+  const uniqueAttemptId = `${params.contrato}|${Date.now()}`;
+
   const txid = buildTxid({
     eventId: "J3",
     kind: "COB_IMMEDIATE",
-    enrollmentId: params.contrato,
+    enrollmentId: uniqueAttemptId,
     participantId: params.participant.cpf,
     installmentIndex: 1,
   });
@@ -167,31 +104,35 @@ async function startEfiJourney3WithFallback(params: {
     },
     valor: { original: params.immediateAmount },
     chave: params.pixKey,
-    ...(params.solicitacaoPagador
-      ? { solicitacaoPagador: params.solicitacaoPagador }
-      : {}),
+    solicitacaoPagador: params.solicitacaoPagador,
   });
 
   await waitCobActivatableForRec(txid, 15_000);
 
-  const result = await tryCreateRecWithTxid({
-    txid,
-    locId: locrec.id,
-    participant: params.participant,
-    contrato: params.contrato,
-    objeto: params.objeto ?? null,
-    periodicidade: params.periodicidade,
-    dataInicial: params.dataInicial,
-    dataFinal: params.dataFinal,
-    recurringAmount: params.recurringAmount,
-    recAttempts: 5,
-    recBudgetMs: 15_000,
+  const efiRec = await pixAutoClient.rec.create({
+    vinculo: {
+      contrato: params.contrato,
+      devedor: {
+        cpf: params.participant.cpf,
+        nome: params.participant.fullName,
+      },
+      objeto: params.objeto || undefined,
+    },
+    calendario: {
+      dataInicial: params.dataInicial,
+      dataFinal: params.dataFinal,
+      periodicidade: params.periodicidade,
+    },
+    valor: { valorRec: params.recurringAmount },
+    politicaRetentativa: "NAO_PERMITE",
+    loc: locrec.id,
+    ativacao: { dadosJornada: { txid } },
   });
 
-  if (result?.rec?.idRec) {
-    return { txid, cob, locrec, rec: result.rec, recGet: result.recGet };
-  }
-  throw new Error("Falha ao criar recorrência.");
+  // Consultar para obter o QR Code unificado
+  const recGet = await pixAutoClient.rec.get(efiRec.idRec, { txid });
+
+  return { txid, cob, locrec, rec: efiRec, recGet };
 }
 
 export async function createEnrollmentAndStartJourney3UseCase(
@@ -202,9 +143,8 @@ export async function createEnrollmentAndStartJourney3UseCase(
     where: { id: input.participantId },
     select: { id: true, cpf: true, fullName: true },
   });
-  if (!participant) {
+  if (!participant)
     throw new AppError("Participant not found", 404, "PARTICIPANT_NOT_FOUND");
-  }
 
   let teamId: string | null = null;
   if (input.teamCode) {
@@ -216,6 +156,7 @@ export async function createEnrollmentAndStartJourney3UseCase(
     teamId = team.id;
   }
 
+  // Buscar recorrência própria ativa
   const myExistingRecurrence = await prisma.pixAutoRecurrence.findFirst({
     where: {
       participantId: input.participantId,
@@ -226,6 +167,7 @@ export async function createEnrollmentAndStartJourney3UseCase(
     select: { idRec: true, pixCopiaECola: true },
   });
 
+  // Buscar se a equipe já tem um líder pagador (para quem escolheu COLLECTIVE)
   const existingTeamRecurrence =
     teamId && input.paymentMode === "COLLECTIVE"
       ? await prisma.pixAutoRecurrence.findFirst({
@@ -253,7 +195,7 @@ export async function createEnrollmentAndStartJourney3UseCase(
         participantId: input.participantId,
       },
     },
-    update: { ...(teamId ? { teamId } : {}) },
+    update: { teamId },
     create: {
       eventId: input.eventId,
       participantId: input.participantId,
@@ -264,8 +206,9 @@ export async function createEnrollmentAndStartJourney3UseCase(
     select: { id: true, status: true },
   });
 
-  const contrato = `ENR|${input.eventId}|${participant.id}`;
+  const contrato = input.contrato;
 
+  // 1. Se já tem recorrência própria, retorna
   if (myExistingRecurrence?.idRec) {
     return {
       enrollmentId: enrollment.id,
@@ -276,6 +219,7 @@ export async function createEnrollmentAndStartJourney3UseCase(
     };
   }
 
+  // 2. Se optou por EQUIPE e JÁ TEM LÍDER: Gera APENAS entrada
   if (input.paymentMode === "COLLECTIVE" && existingTeamRecurrence) {
     const txid = buildTxid({
       eventId: "J1",
@@ -289,7 +233,7 @@ export async function createEnrollmentAndStartJourney3UseCase(
       devedor: { cpf: participant.cpf, nome: participant.fullName },
       valor: { original: normalizeMoney(input.immediateAmount) },
       chave: pixKey,
-      solicitacaoPagador: "Inscrição individual (mensalidade via líder)",
+      solicitacaoPagador: "Entrada individual",
     });
 
     return {
@@ -302,10 +246,15 @@ export async function createEnrollmentAndStartJourney3UseCase(
     };
   }
 
+  // 3. Caso contrário: Gera Jornada 3 (Entrada + Recorrência)
+  // Se for Coletivo sem líder, vira líder (51x). Se for Individual, paga 1x.
   const isLeader = input.paymentMode === "COLLECTIVE";
   const multiplier = isLeader ? 51 : 1;
   const recurringAmount = normalizeMoney(18.3 * multiplier);
-  const immediateAmount = normalizeMoney(input.immediateAmount);
+  // Se for líder, o primeiro pagamento é o valor recorrente do grupo
+  const immediateAmount = isLeader
+    ? recurringAmount
+    : normalizeMoney(input.immediateAmount);
 
   const { txid, cob, rec, recGet } = await startEfiJourney3WithFallback({
     pixKey,
@@ -318,10 +267,11 @@ export async function createEnrollmentAndStartJourney3UseCase(
     dataInicial: input.dataInicial,
     dataFinal: input.dataFinal,
     solicitacaoPagador: isLeader
-      ? "Ativação Equipe (51 pessoas)"
-      : "Inscrição + Mensalidade Individual",
+      ? "Ativação Grupo (51 pessoas) - Mês 1"
+      : "Inscrição + Mensalidade",
   });
 
+  // Persistir no banco...
   const recIdempotencyKey = sha256(
     ["REC", enrollment.id, contrato, recurringAmount].join("|"),
   );
