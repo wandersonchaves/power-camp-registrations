@@ -171,3 +171,45 @@ export async function listEnrollments(params: {
 
   return { total, items, page, pageSize };
 }
+
+export async function getRecurringSummary(params: { eventId: string }) {
+  const teams = await prisma.team.findMany({ orderBy: { code: "asc" } });
+
+  const summary = await Promise.all(
+    teams.map(async (t) => {
+      const recurrences = await prisma.pixAutoRecurrence.findMany({
+        where: {
+          eventId: params.eventId,
+          status: "APROVADA",
+          participant: {
+            enrollments: {
+              some: {
+                eventId: params.eventId,
+                teamId: t.id,
+                status: { in: ["PENDING", "CONFIRMED"] },
+              },
+            },
+          },
+        },
+        select: {
+          id: true,
+          valorRec: true,
+        },
+      });
+
+      const totalValue = recurrences.reduce(
+        (acc, r) => acc + Number(r.valorRec),
+        0,
+      );
+
+      return {
+        teamCode: t.code,
+        teamName: t.name,
+        activeCount: recurrences.length,
+        totalMonthlyValue: totalValue.toFixed(2),
+      };
+    }),
+  );
+
+  return summary;
+}
