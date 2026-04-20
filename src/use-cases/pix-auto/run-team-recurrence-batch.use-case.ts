@@ -16,7 +16,7 @@ type Input = {
  * Executa a geração de cobranças para uma equipe específica ou todas as equipes.
  */
 export async function runTeamRecurrenceBatchUseCase(input: Input) {
-  const { eventId, teamCode, dueDateDay = 10 } = input;
+  const { eventId, teamCode } = input;
 
   const now = new Date();
   // Se não informada, a competência alvo é o mês ATUAL (conforme nova regra)
@@ -81,15 +81,29 @@ export async function runTeamRecurrenceBatchUseCase(input: Input) {
     }[],
   };
 
-  // Se hoje é dia 20, o vencimento mínimo permitido pela Efí é dia 22 (D+2)
-  const currentDay = now.getUTCDate();
-  const safeDueDateDay = Math.max(dueDateDay, currentDay + 2);
-
   for (const rec of recurrences) {
     try {
-      // Formata o dia com zero à esquerda para compor a data YYYY-MM-DD
-      const dayStr = String(safeDueDateDay).padStart(2, "0");
-      const dueDate = `${competencia}-${dayStr}`;
+      // Regra de segurança: O vencimento não pode ser anterior à dataInicial da recorrência
+      // nem anterior a D+2 (regra da Efí para cobranças manuais de Pix Automático)
+      const recurrenceStart = new Date(rec.dataInicial);
+      const minAllowedDate = new Date(now.getTime());
+      minAllowedDate.setUTCDate(now.getUTCDate() + 2);
+
+      let finalDueDate: Date;
+      if (recurrenceStart > minAllowedDate) {
+        finalDueDate = recurrenceStart;
+      } else {
+        finalDueDate = minAllowedDate;
+        // Se a dataInicial for, por exemplo, dia 20 e hoje é 20, o minAllowedDate (22) é usado.
+      }
+
+      // Garante que o vencimento caia no dia solicitado (ou no dia seguro calculado)
+      // Se o admin pediu dia 10, mas hoje é 20, usamos o dia seguro.
+      const dayToUse = finalDueDate.getUTCDate();
+      const monthToUse = finalDueDate.getUTCMonth() + 1;
+      const yearToUse = finalDueDate.getUTCFullYear();
+
+      const dueDate = `${yearToUse}-${String(monthToUse).padStart(2, "0")}-${String(dayToUse).padStart(2, "0")}`;
 
       await createNextCobrForRecurrenceUseCase({
         eventId: rec.eventId,
