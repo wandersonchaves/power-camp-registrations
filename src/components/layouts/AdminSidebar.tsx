@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 const ADMIN_LINKS = [
   { label: "Placar Geral", href: "/admin/race", icon: Trophy },
   { label: "Participantes", href: "/admin/participants", icon: Users },
+  { label: "Recorrência", href: "/admin/recurring", icon: Zap },
   { label: "Importação", href: "/import", icon: Upload },
 ];
 

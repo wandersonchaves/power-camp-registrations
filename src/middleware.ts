@@ -63,11 +63,9 @@ export async function middleware(req: NextRequest) {
 
   const isAdmin = Boolean(token && isActive && role === "ADMIN");
 
-  // 2) ROOT: manda admin ativo para admin, senão para enroll
+  // 2) ROOT: Deixa passar para mostrar a Landing Page
   if (pathname === "/") {
-    return isAdmin
-      ? redirectTo(req, "/admin/race")
-      : redirectTo(req, "/enroll");
+    return NextResponse.next();
   }
 
   // 3) Rotas /admin: apenas ADMIN ativo
@@ -77,15 +75,17 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // 4) Rotas /enroll: todo mundo pode acessar (admin também)
-  if (isEnrollPath(pathname)) {
+  // 4) Rotas permitidas para todos os logados ou visitantes (conforme lógica de cada página)
+  if (isEnrollPath(pathname) || pathname === "/import") {
     return NextResponse.next();
   }
 
-  // 5) Outras rotas:
+  // 5) Outras rotas (fallback):
   //    - ADMIN ativo: pode navegar
-  //    - USER/visitante: joga para /enroll
+  //    - USER/visitante: joga para /enroll se não for admin
   if (isAdmin) return NextResponse.next();
+
+  // Se estiver tentando acessar algo que não é / ou /enroll ou /import ou /admin e não for admin
   return redirectTo(req, "/enroll");
 }
 
