@@ -13,7 +13,7 @@ type Input = {
   dueDate: string; // YYYY-MM-DD
   amount: string; // "106.07"
 
-  recebedor: {
+  recebedor?: {
     conta: string;
     tipoConta: "CORRENTE" | "POUPANCA" | "PAGAMENTO";
     agencia?: string;
