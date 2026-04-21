@@ -4,7 +4,7 @@ import { addDays } from "date-fns";
 import { createNextCobrForRecurrenceUseCase } from "./create-next-cobr-for-recurrence.use-case";
 import { createSolicRecUseCase } from "./create-solicrec.use-case";
 
-import { log } from "@/lib/logger";
+import { pixAutoClient } from "@/infra/efi/pix-auto.client";
 import { prisma } from "@/lib/prisma";
 
 type Input = {
@@ -21,7 +21,6 @@ export async function runTeamRecurrenceBatchUseCase(input: Input) {
   const { eventId, teamCode } = input;
 
   const now = new Date();
-  // Se não informada, a competência alvo é o mês ATUAL (conforme nova regra)
   let competencia = input.targetCompetencia;
   if (!competencia) {
     const year = now.getUTCFullYear();
@@ -29,20 +28,14 @@ export async function runTeamRecurrenceBatchUseCase(input: Input) {
     competencia = `${year}-${String(month).padStart(2, "0")}`;
   }
 
-  log("info", "[BATCH] Starting team recurrence batch", {
-    teamCode,
-    competencia,
-  });
   console.log(
     `[BATCH] Starting team recurrence batch for ${competencia} - Team: ${teamCode || "ALL"}`,
   );
 
-  // 1. Busca recorrências ativas
-  // Filtramos por equipe via Participant -> Enrollment
   const recurrences = await prisma.pixAutoRecurrence.findMany({
     where: {
       eventId,
-      status: { in: ["APROVADA", "CRIADA", "ATIVA"] }, // Aceita múltiplos status válidos da Efí
+      status: { in: ["APROVADA", "CRIADA", "ATIVA"] },
       participant: {
         enrollments: {
           some: {
@@ -52,7 +45,6 @@ export async function runTeamRecurrenceBatchUseCase(input: Input) {
           },
         },
       },
-      // Permitir se não houver cobrança ativa ou paga
       charges: {
         none: {
           competencia,
@@ -73,10 +65,6 @@ export async function runTeamRecurrenceBatchUseCase(input: Input) {
     },
   });
 
-  log("info", `[BATCH] Found ${recurrences.length} recurrences to process`, {
-    teamCode,
-    competencia,
-  });
   console.log(`[BATCH] Found ${recurrences.length} recurrences to process`);
 
   const results = {
@@ -93,15 +81,29 @@ export async function runTeamRecurrenceBatchUseCase(input: Input) {
   for (const rec of recurrences) {
     try {
       console.log(
-        `[BATCH] Processing recurrence ${rec.idRec} for ${rec.participant.fullName}`,
+        `[BATCH] Synchronizing status for ${rec.idRec} (${rec.participant.fullName})...`,
       );
 
-      // 1. Se o status for CRIADA, precisamos criar uma solicitação (solicrec) primeiro para o banco aprovar
+      // Sincroniza status com a Efí antes de agir
+      const efiRec = await pixAutoClient.rec.get(rec.idRec!);
+      const currentStatus = efiRec.status;
+
+      if (currentStatus !== rec.status) {
+        console.log(
+          `[BATCH] Updating local status from ${rec.status} to ${currentStatus}`,
+        );
+        await prisma.pixAutoRecurrence.update({
+          where: { id: rec.id },
+          data: { status: currentStatus },
+        });
+        rec.status = currentStatus; // Atualiza a referência local para o loop
+      }
+
+      // 1. Se o status for CRIADA, precisamos criar uma solicitação (solicrec)
       if (rec.status === "CRIADA") {
         console.log(
-          `[BATCH] Recurrence ${rec.idRec} is CRIADA. Creating solicrec first...`,
+          `[BATCH] Recurrence ${rec.idRec} is still CRIADA. Creating solicrec...`,
         );
-        // Usamos dados de exemplo funcional do pagador
         await createSolicRecUseCase({
           recurrenceId: rec.id,
           dataExpiracaoSolicitacaoISO: addDays(now, 7).toISOString(),
@@ -112,47 +114,50 @@ export async function runTeamRecurrenceBatchUseCase(input: Input) {
             ispbParticipante: "18236120",
           },
         });
-        console.log(`[BATCH] Solicrec created for ${rec.idRec}.`);
+        console.log(
+          `[BATCH] ✅ Solicrec created for ${rec.idRec}. User must approve in bank.`,
+        );
+        results.success++;
+        continue; // Para este participante, paramos aqui até ele aprovar
       }
 
-      // Regra de segurança: O vencimento não pode ser anterior à dataInicial da recorrência
-      // nem anterior a D+2 (regra da Efí para cobranças manuais de Pix Automático)
-      const recurrenceStart = new Date(rec.dataInicial);
-      const minAllowedDate = new Date(now.getTime());
-      minAllowedDate.setUTCDate(now.getUTCDate() + 2);
+      // 2. Se o status for APROVADA ou ATIVA, gera a cobrança do mês
+      if (rec.status === "APROVADA" || rec.status === "ATIVA") {
+        const recurrenceStart = new Date(rec.dataInicial);
+        const minAllowedDate = new Date(now.getTime());
+        minAllowedDate.setUTCDate(now.getUTCDate() + 2);
 
-      let finalDueDate: Date;
-      if (recurrenceStart > minAllowedDate) {
-        finalDueDate = recurrenceStart;
+        let finalDueDate: Date;
+        if (recurrenceStart > minAllowedDate) {
+          finalDueDate = recurrenceStart;
+        } else {
+          finalDueDate = minAllowedDate;
+        }
+
+        const dayToUse = finalDueDate.getUTCDate();
+        const monthToUse = finalDueDate.getUTCMonth() + 1;
+        const yearToUse = finalDueDate.getUTCFullYear();
+        const dueDate = `${yearToUse}-${String(monthToUse).padStart(2, "0")}-${String(dayToUse).padStart(2, "0")}`;
+
+        await createNextCobrForRecurrenceUseCase({
+          eventId: rec.eventId,
+          recurrenceId: rec.id,
+          dueDate,
+          amount: rec.valorRec,
+          infoAdicional: `Parcela ${competencia} - ${rec.event.name}`,
+        });
+
+        console.log(`[BATCH] ✅ Success generating charge for ${rec.idRec}`);
+        results.success++;
+        results.details.push({ recurrenceId: rec.id, status: "success" });
       } else {
-        finalDueDate = minAllowedDate;
+        console.log(
+          `[BATCH] ℹ️ Recurrence ${rec.idRec} in status ${rec.status}. Skipping charge generation.`,
+        );
       }
-
-      const dayToUse = finalDueDate.getUTCDate();
-      const monthToUse = finalDueDate.getUTCMonth() + 1;
-      const yearToUse = finalDueDate.getUTCFullYear();
-
-      const dueDate = `${yearToUse}-${String(monthToUse).padStart(2, "0")}-${String(dayToUse).padStart(2, "0")}`;
-
-      await createNextCobrForRecurrenceUseCase({
-        eventId: rec.eventId,
-        recurrenceId: rec.id,
-        dueDate,
-        amount: rec.valorRec,
-        infoAdicional: `Parcela ${competencia} - ${rec.event.name}`,
-      });
-
-      console.log(`[BATCH] ✅ Success for ${rec.idRec}`);
-      results.success++;
-      results.details.push({ recurrenceId: rec.id, status: "success" });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       console.error(`[BATCH] ❌ Failed for ${rec.idRec}: ${errorMessage}`);
-      log("error", "[BATCH] Failed to create cobr", {
-        recurrenceId: rec.id,
-        idRec: rec.idRec,
-        error: errorMessage,
-      });
       results.failed++;
       results.details.push({
         recurrenceId: rec.id,
@@ -162,11 +167,6 @@ export async function runTeamRecurrenceBatchUseCase(input: Input) {
     }
   }
 
-  log("info", "[BATCH] Finished team recurrence batch", {
-    success: results.success,
-    failed: results.failed,
-    competencia,
-  });
   console.log(
     `[BATCH] Finished team recurrence batch. Success: ${results.success}, Failed: ${results.failed}`,
   );
