@@ -180,7 +180,7 @@ export async function getRecurringSummary(params: { eventId: string }) {
       const recurrences = await prisma.pixAutoRecurrence.findMany({
         where: {
           eventId: params.eventId,
-          status: "APROVADA",
+          status: { in: ["APROVADA", "CRIADA", "ATIVA"] },
           participant: {
             enrollments: {
               some: {
