@@ -104,20 +104,26 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
     dueDate,
   });
 
-  // Idempotência local por (recurrenceId, competencia)
+  // Idempotência local por (recurrenceId, competencia) - Permitir se não estiver ativa/paga
   const existing = await prisma.pixAutoCobr.findFirst({
-    where: { recurrenceId: rec.id, competencia },
+    where: {
+      recurrenceId: rec.id,
+      competencia,
+      status: { in: ["ATIVA", "CONCLUIDA", "PAGO"] },
+    },
   });
   if (existing) return existing;
 
-  // Draft para evitar race
+  // Draft para evitar race, usando o txid no unique para permitir retentar o mesmo txid se falhar
   const idempotencyKey = sha256(
-    ["COBR_NEXT_V2", rec.id, competencia, txid, dueDate, amount].join("|"),
+    ["COBR_NEXT_V3", rec.id, competencia, txid, dueDate, amount].join("|"),
   );
 
   const draft = await prisma.pixAutoCobr.upsert({
     where: { idempotencyKey },
-    update: {},
+    update: {
+      status: "CREATING",
+    },
     create: {
       idempotencyKey,
       recurrenceId: rec.id,
