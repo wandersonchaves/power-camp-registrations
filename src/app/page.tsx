@@ -6,6 +6,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/auth-options";
 import { PublicShell } from "@/components/layouts/PublicShell";
 import { Button } from "@/components/ui/button";
+import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,12 +18,20 @@ export default async function HomePage() {
     redirect("/admin/race");
   }
 
+  // Buscar evento ativo do banco
+  const event = await prisma.event.findFirst({
+    where: { isActive: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const eventLabel = event ? `${event.name}` : "PowerCamp 2025";
+
   return (
     <PublicShell>
       <main className="flex flex-col items-center justify-center px-4 py-20 text-center">
         <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-4 py-1.5 text-sm font-bold text-blue-600">
           <Zap className="size-4" />
-          PowerCamp 2025
+          {eventLabel}
         </div>
 
         <h1 className="mb-6 max-w-3xl text-5xl font-black tracking-tight md:text-7xl">

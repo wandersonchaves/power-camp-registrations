@@ -137,15 +137,24 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
     },
   });
 
-  const resp = await pixAutoClient.cobr.put(txid, {
+  // Prepara o body limpando campos opcionais vazios
+  const putBody: Record<string, unknown> = {
     idRec: rec.idRec,
     infoAdicional: input.infoAdicional,
     calendario: { dataDeVencimento: dueDate },
     valor: { original: amount },
     ajusteDiaUtil: input.ajusteDiaUtil ?? true,
-    devedor: input.devedor,
-    recebedor: input.recebedor,
-  });
+  };
+
+  if (input.devedor && Object.keys(input.devedor).length > 0) {
+    putBody.devedor = input.devedor;
+  }
+
+  if (input.recebedor && Object.keys(input.recebedor).length > 0) {
+    putBody.recebedor = input.recebedor;
+  }
+
+  const resp = await pixAutoClient.cobr.put(txid, putBody);
 
   const cobrResp = resp as CobrResponse;
 
