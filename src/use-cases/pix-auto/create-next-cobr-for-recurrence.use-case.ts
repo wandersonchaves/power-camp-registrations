@@ -130,7 +130,7 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
   const idempotencyKey =
     existingByTxid?.idempotencyKey ||
     sha256(
-      ["COBR_NEXT_V4", rec.id, competencia, txid, dueDate, amount].join("|"),
+      ["COBR_NEXT_V5", rec.id, competencia, txid, dueDate, amount].join("|"),
     );
 
   const draft = await prisma.pixAutoCobr.upsert({
@@ -152,18 +152,23 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
   });
 
   // Prepara o body conforme o schema estrito da Efí para cobranças recorrentes
+  // NOTA: O devedor NÃO deve ser enviado com CPF/Nome aqui, pois já está no idRec.
   const putBody: CreateCobrRequest = {
     idRec: rec.idRec,
     calendario: { dataDeVencimento: dueDate },
     valor: { original: amount },
-    devedor: {
-      cpf: rec.participant.cpf,
-      nome: rec.participant.fullName,
-    },
     infoAdicional: input.infoAdicional || undefined,
-    recebedor:
-      input.recebedor && input.recebedor.conta ? input.recebedor : undefined,
   };
+
+  // Opcional: só adiciona recebedor se houver dados reais
+  if (input.recebedor && input.recebedor.conta) {
+    putBody.recebedor = input.recebedor;
+  }
+
+  // Opcional: só adiciona devedor se houver dados de ENDEREÇO (conforme schema da Efí)
+  if (input.devedor && Object.keys(input.devedor).length > 0) {
+    putBody.devedor = input.devedor;
+  }
 
   const resp = await pixAutoClient.cobr.put(txid, putBody);
 
