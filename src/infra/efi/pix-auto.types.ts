@@ -234,9 +234,13 @@ export type SolicRecResponse = {
  */
 export type CreateCobrRequest = {
   idRec: string;
+  chave?: string;
   infoAdicional?: string;
   calendario: { dataDeVencimento: YmdDate };
-  valor: { original: string };
+  valor: {
+    original: string;
+    modalidadeAlteracao?: number;
+  };
   ajusteDiaUtil?: boolean;
   devedor?: {
     cpf?: string;

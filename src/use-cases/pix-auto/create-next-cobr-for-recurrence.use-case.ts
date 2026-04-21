@@ -76,6 +76,7 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
 
   const dueDate = assertDateYYYYMMDD(input.dueDate, "dueDate");
   const amount = normalizeMoney(input.amount);
+  const pixKey = process.env.EFI_PIX_KEY;
 
   const rec = await prisma.pixAutoRecurrence.findUnique({
     where: { id: recurrenceId },
@@ -121,16 +122,15 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
   if (existingActive) return existingActive;
 
   // 2. Busca se já existe um registro com este txid (mesmo que falho ou incompleto)
-  // Isso evita o erro de "Unique constraint failed on (txid)"
   const existingByTxid = await prisma.pixAutoCobr.findUnique({
     where: { txid },
   });
 
-  // 3. Define a idempotencyKey: se já existe o txid, usamos a dele, senão geramos a nova
+  // 3. Define a idempotencyKey
   const idempotencyKey =
     existingByTxid?.idempotencyKey ||
     sha256(
-      ["COBR_NEXT_V5", rec.id, competencia, txid, dueDate, amount].join("|"),
+      ["COBR_NEXT_V6", rec.id, competencia, txid, dueDate, amount].join("|"),
     );
 
   const draft = await prisma.pixAutoCobr.upsert({
@@ -152,11 +152,14 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
   });
 
   // Prepara o body conforme o schema estrito da Efí para cobranças recorrentes
-  // NOTA: O devedor NÃO deve ser enviado com CPF/Nome aqui, pois já está no idRec.
   const putBody: CreateCobrRequest = {
     idRec: rec.idRec,
+    chave: pixKey, // Inclui a chave PIX, obrigatória em quase todos os endpoints de cobrança
     calendario: { dataDeVencimento: dueDate },
-    valor: { original: amount },
+    valor: {
+      original: amount,
+      modalidadeAlteracao: 0, // Padrão PIX: 0 = não permite alteração pelo pagador
+    },
     infoAdicional: input.infoAdicional || undefined,
   };
 
@@ -165,7 +168,7 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
     putBody.recebedor = input.recebedor;
   }
 
-  // Opcional: só adiciona devedor se houver dados de ENDEREÇO (conforme schema da Efí)
+  // Opcional: só adiciona devedor se houver dados de ENDEREÇO
   if (input.devedor && Object.keys(input.devedor).length > 0) {
     putBody.devedor = input.devedor;
   }
