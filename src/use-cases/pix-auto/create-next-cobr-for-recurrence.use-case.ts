@@ -1,6 +1,9 @@
 // src/use-cases/pix-auto/create-next-cobr-for-recurrence.use-case.ts
 import { pixAutoClient } from "@/infra/efi/pix-auto.client";
-import type { CobrResponse } from "@/infra/efi/pix-auto.types";
+import type {
+  CobrResponse,
+  CreateCobrRequest,
+} from "@/infra/efi/pix-auto.types";
 import { buildTxid } from "@/infra/efi/txid";
 import { sha256 } from "@/lib/crypto";
 import { AppError } from "@/lib/http-errors";
@@ -138,7 +141,7 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
   });
 
   // Prepara o body limpando campos opcionais vazios
-  const putBody: Record<string, unknown> = {
+  const putBody: CreateCobrRequest = {
     idRec: rec.idRec,
     infoAdicional: input.infoAdicional,
     calendario: { dataDeVencimento: dueDate },
@@ -147,11 +150,11 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
   };
 
   if (input.devedor && Object.keys(input.devedor).length > 0) {
-    putBody.devedor = input.devedor;
+    putBody.devedor = input.devedor as CreateCobrRequest["devedor"];
   }
 
   if (input.recebedor && Object.keys(input.recebedor).length > 0) {
-    putBody.recebedor = input.recebedor;
+    putBody.recebedor = input.recebedor as CreateCobrRequest["recebedor"];
   }
 
   const resp = await pixAutoClient.cobr.put(txid, putBody);
