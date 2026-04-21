@@ -37,7 +37,7 @@ export async function runTeamRecurrenceBatchUseCase(input: Input) {
   const recurrences = await prisma.pixAutoRecurrence.findMany({
     where: {
       eventId,
-      status: "APROVADA", // EFI status para ativo
+      status: { in: ["APROVADA", "CRIADA", "ATIVA"] }, // Aceita múltiplos status válidos da Efí
       participant: {
         enrollments: {
           some: {
