@@ -76,7 +76,6 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
 
   const dueDate = assertDateYYYYMMDD(input.dueDate, "dueDate");
   const amount = normalizeMoney(input.amount);
-  const pixKey = process.env.EFI_PIX_KEY;
 
   const rec = await prisma.pixAutoRecurrence.findUnique({
     where: { id: recurrenceId },
@@ -154,13 +153,12 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
   // Prepara o body conforme o schema estrito da Efí para cobranças recorrentes
   const putBody: CreateCobrRequest = {
     idRec: rec.idRec,
-    chave: pixKey, // Inclui a chave PIX, obrigatória em quase todos os endpoints de cobrança
     calendario: { dataDeVencimento: dueDate },
     valor: {
       original: amount,
-      modalidadeAlteracao: 0, // Padrão PIX: 0 = não permite alteração pelo pagador
     },
     infoAdicional: input.infoAdicional || undefined,
+    ajusteDiaUtil: input.ajusteDiaUtil ?? true,
   };
 
   // Opcional: só adiciona recebedor se houver dados reais
