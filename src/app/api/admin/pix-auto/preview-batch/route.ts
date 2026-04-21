@@ -29,6 +29,10 @@ export async function POST(req: Request) {
       body.targetCompetencia ||
       `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
 
+    console.log(
+      `[PREVIEW] Checking competencia ${competencia} for team ${body.teamCode} and event ${eventId}`,
+    );
+
     const recurrences = await prisma.pixAutoRecurrence.findMany({
       where: {
         eventId,
@@ -42,7 +46,13 @@ export async function POST(req: Request) {
             },
           },
         },
-        charges: { none: { competencia } },
+        // Mudança: permitir se não houver cobrança ativa/concluída
+        charges: {
+          none: {
+            competencia,
+            status: { in: ["ATIVA", "CONCLUIDA", "PAGO"] },
+          },
+        },
       },
       select: {
         id: true,

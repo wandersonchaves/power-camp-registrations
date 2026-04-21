@@ -175,6 +175,9 @@ export async function listEnrollments(params: {
 export async function getRecurringSummary(params: { eventId: string }) {
   const teams = await prisma.team.findMany({ orderBy: { code: "asc" } });
 
+  const now = new Date();
+  const competencia = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+
   const summary = await Promise.all(
     teams.map(async (t) => {
       const recurrences = await prisma.pixAutoRecurrence.findMany({
@@ -188,6 +191,13 @@ export async function getRecurringSummary(params: { eventId: string }) {
                 teamId: t.id,
                 status: { in: ["PENDING", "CONFIRMED"] },
               },
+            },
+          },
+          // Permitir se não houver cobrança ativa ou paga no mês
+          charges: {
+            none: {
+              competencia,
+              status: { in: ["ATIVA", "CONCLUIDA", "PAGO"] },
             },
           },
         },

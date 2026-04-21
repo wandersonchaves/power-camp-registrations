@@ -47,9 +47,12 @@ export async function runTeamRecurrenceBatchUseCase(input: Input) {
           },
         },
       },
-      // Evita duplicados para a mesma competência
+      // Permitir se não houver cobrança ativa ou paga
       charges: {
-        none: { competencia },
+        none: {
+          competencia,
+          status: { in: ["ATIVA", "CONCLUIDA", "PAGO"] },
+        },
       },
     },
     include: {
