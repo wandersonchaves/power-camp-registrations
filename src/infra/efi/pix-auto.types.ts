@@ -239,6 +239,8 @@ export type CreateCobrRequest = {
   valor: { original: string };
   ajusteDiaUtil?: boolean;
   devedor?: {
+    cpf?: string;
+    nome?: string;
     cep?: string;
     cidade?: string;
     email?: string;

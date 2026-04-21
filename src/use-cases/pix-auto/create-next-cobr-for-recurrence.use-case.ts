@@ -1,4 +1,3 @@
-// src/use-cases/pix-auto/create-next-cobr-for-recurrence.use-case.ts
 import { pixAutoClient } from "@/infra/efi/pix-auto.client";
 import type {
   CobrResponse,
@@ -17,9 +16,9 @@ type Input = {
   amount: string; // "106.07"
 
   recebedor?: {
-    conta: string;
-    tipoConta: "CORRENTE" | "POUPANCA" | "PAGAMENTO";
     agencia?: string;
+    conta?: string;
+    tipoConta?: string;
   };
   infoAdicional?: string;
   ajusteDiaUtil?: boolean;
@@ -80,7 +79,11 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
 
   const rec = await prisma.pixAutoRecurrence.findUnique({
     where: { id: recurrenceId },
-    select: { id: true, idRec: true },
+    select: {
+      id: true,
+      idRec: true,
+      participant: { select: { cpf: true, fullName: true } },
+    },
   });
   if (!rec?.idRec)
     throw new AppError("Recurrence not ready", 409, "REC_NOT_READY");
@@ -127,7 +130,7 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
   const idempotencyKey =
     existingByTxid?.idempotencyKey ||
     sha256(
-      ["COBR_NEXT_V3", rec.id, competencia, txid, dueDate, amount].join("|"),
+      ["COBR_NEXT_V4", rec.id, competencia, txid, dueDate, amount].join("|"),
     );
 
   const draft = await prisma.pixAutoCobr.upsert({
@@ -148,22 +151,19 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
     },
   });
 
-  // Prepara o body limpando campos opcionais vazios
+  // Prepara o body conforme o schema estrito da Efí para cobranças recorrentes
   const putBody: CreateCobrRequest = {
     idRec: rec.idRec,
-    infoAdicional: input.infoAdicional,
     calendario: { dataDeVencimento: dueDate },
     valor: { original: amount },
-    ajusteDiaUtil: input.ajusteDiaUtil ?? true,
+    devedor: {
+      cpf: rec.participant.cpf,
+      nome: rec.participant.fullName,
+    },
+    infoAdicional: input.infoAdicional || undefined,
+    recebedor:
+      input.recebedor && input.recebedor.conta ? input.recebedor : undefined,
   };
-
-  if (input.devedor && Object.keys(input.devedor).length > 0) {
-    putBody.devedor = input.devedor as CreateCobrRequest["devedor"];
-  }
-
-  if (input.recebedor && Object.keys(input.recebedor).length > 0) {
-    putBody.recebedor = input.recebedor as CreateCobrRequest["recebedor"];
-  }
 
   const resp = await pixAutoClient.cobr.put(txid, putBody);
 
