@@ -110,10 +110,6 @@ export async function runTeamRecurrenceBatchUseCase(input: Input) {
         recurrenceId: rec.id,
         dueDate,
         amount: rec.valorRec,
-        recebedor: {
-          conta: process.env.EFI_RECEBEDOR_CONTA || "000000",
-          tipoConta: "CORRENTE",
-        },
         infoAdicional: `Parcela ${competencia} - ${rec.event.name}`,
       });
 
