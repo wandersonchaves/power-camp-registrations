@@ -424,7 +424,7 @@ export const pixAutoClient = {
         http,
         { op: "POST /v2/cobr", url: "/v2/cobr", method: "POST" },
         async () => {
-          const res = await http.post<CobrResponse>("/v2/cobr", body);
+          const res = await http.post<CobrResponse>("/v2/cobr", { cobr: body });
           if (res.data?.txid) assertValidTxid(res.data.txid);
           return res.data;
         },
@@ -445,7 +445,7 @@ export const pixAutoClient = {
         async () => {
           const res = await http.put<CobrResponse>(
             `/v2/cobr/${encodeURIComponent(safeTxid)}`,
-            body,
+            { cobr: body },
           );
           if (res.data?.txid) assertValidTxid(res.data.txid);
           return res.data;
