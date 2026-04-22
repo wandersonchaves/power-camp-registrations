@@ -111,7 +111,7 @@ export async function runTeamRecurrenceBatchUseCase(input: Input) {
           destinatario: {
             agencia: efiConfig.recebedor.agencia,
             conta: efiConfig.recebedor.conta,
-            cpf: rec.participant.cpf, // FIXME: Deveria ser o CPF/CNPJ do recebedor, mas mantendo conforme original
+            cpf: efiConfig.recebedor.cpfCnpj,
             ispbParticipante: efiConfig.recebedor.ispb,
           },
         });
