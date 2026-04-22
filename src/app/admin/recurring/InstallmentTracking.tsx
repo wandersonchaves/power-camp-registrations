@@ -1,6 +1,6 @@
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CheckCircle2, Clock } from "lucide-react";
+import { CalendarClock, CheckCircle2, Clock } from "lucide-react";
 
 interface MonthlyCharge {
   competencia: string | null;
@@ -96,7 +96,9 @@ export function InstallmentTracking({ data }: InstallmentTrackingProps) {
                               charge.status === "PAGO" ||
                               charge.status === "PAID"
                                 ? "PAID"
-                                : "PENDING"
+                                : charge.status === "AGENDADA"
+                                  ? "SCHEDULED"
+                                  : "PENDING"
                             }
                             date={charge.paidAt}
                             size="sm"
@@ -120,11 +122,12 @@ function StatusBadge({
   date,
   size = "md",
 }: {
-  status: "PAID" | "PENDING";
+  status: "PAID" | "PENDING" | "SCHEDULED";
   date?: Date | string | null;
   size?: "sm" | "md";
 }) {
   const isPaid = status === "PAID";
+  const isScheduled = status === "SCHEDULED";
 
   if (size === "sm") {
     return (
@@ -132,11 +135,15 @@ function StatusBadge({
         title={
           isPaid && date
             ? `Pago em: ${format(new Date(date), "dd/MM/yyyy HH:mm")}`
-            : "Pendente"
+            : isScheduled && date
+              ? `Agendado para: ${format(new Date(date), "dd/MM/yyyy")}`
+              : "Pendente"
         }
       >
         {isPaid ? (
           <CheckCircle2 className="size-5 text-emerald-500" />
+        ) : isScheduled ? (
+          <CalendarClock className="size-5 text-blue-500" />
         ) : (
           <Clock className="size-5 text-amber-500" />
         )}
@@ -152,18 +159,22 @@ function StatusBadge({
         ${
           isPaid
             ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
-            : "border border-amber-200 bg-amber-50 text-amber-700"
+            : isScheduled
+              ? "border border-blue-200 bg-blue-50 text-blue-700"
+              : "border border-amber-200 bg-amber-50 text-amber-700"
         }
       `}
       >
         {isPaid ? (
           <CheckCircle2 className="size-3.5" />
+        ) : isScheduled ? (
+          <CalendarClock className="size-3.5" />
         ) : (
           <Clock className="size-3.5" />
         )}
-        {isPaid ? "PAGO" : "PENDENTE"}
+        {isPaid ? "PAGO" : isScheduled ? "AGENDADO" : "PENDENTE"}
       </div>
-      {isPaid && date && (
+      {(isPaid || isScheduled) && date && (
         <span className="text-[10px] text-gray-400">
           {format(new Date(date), "dd/MM/yy", { locale: ptBR })}
         </span>
