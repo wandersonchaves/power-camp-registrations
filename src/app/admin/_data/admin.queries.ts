@@ -223,3 +223,73 @@ export async function getRecurringSummary(params: { eventId: string }) {
 
   return summary;
 }
+
+export async function getInstallmentTracking(params: { eventId: string }) {
+  const recurrences = await prisma.pixAutoRecurrence.findMany({
+    where: {
+      eventId: params.eventId,
+      objeto: { contains: "Equipe" },
+    },
+    select: {
+      id: true,
+      valorRec: true,
+      participant: {
+        select: { fullName: true },
+      },
+      event: {
+        select: { name: true },
+      },
+      participantId: true,
+      charges: {
+        orderBy: { competencia: "asc" },
+        select: {
+          competencia: true,
+          status: true,
+          paidAt: true,
+          valorOriginal: true,
+        },
+      },
+    },
+    orderBy: { participant: { fullName: "asc" } },
+  });
+
+  // Busca pagamentos iniciais dos mesmos participantes (Mês 1)
+  const participantIds = recurrences.map((r) => r.participantId);
+  const initialPayments = await prisma.enrollment.findMany({
+    where: {
+      eventId: params.eventId,
+      participantId: { in: participantIds },
+    },
+    select: {
+      participantId: true,
+      status: true,
+      confirmedAt: true,
+      initialPayment: {
+        select: {
+          amount: true,
+          status: true,
+          paidAt: true,
+        },
+      },
+    },
+  });
+
+  const initialByParticipant = new Map(
+    initialPayments.map((p) => [p.participantId, p]),
+  );
+
+  return recurrences.map((r) => {
+    const initial = initialByParticipant.get(r.participantId);
+    return {
+      id: r.id,
+      participantName: r.participant.fullName,
+      valorEquipe: r.valorRec,
+      initial: {
+        status: initial?.status || "PENDING",
+        paidAt: initial?.confirmedAt || initial?.initialPayment?.paidAt || null,
+        amount: initial?.initialPayment?.amount || "0.00",
+      },
+      monthlyCharges: r.charges,
+    };
+  });
+}
