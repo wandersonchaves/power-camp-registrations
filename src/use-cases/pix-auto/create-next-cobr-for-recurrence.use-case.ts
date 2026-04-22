@@ -167,6 +167,7 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
       original: amount,
     },
     infoAdicional: input.infoAdicional || undefined,
+    ajusteDiaUtil: input.ajusteDiaUtil ?? true, // Re-incluído conforme documentação
     devedor: {
       cpf: rec.participant.cpf,
       nome: rec.participant.fullName,
