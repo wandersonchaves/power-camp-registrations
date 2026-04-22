@@ -50,10 +50,6 @@ export async function schedulerCobrUseCase() {
         recurrenceId: rec.id,
         dueDate,
         amount: rec.valorRec,
-        recebedor: {
-          conta: "000000", // Placeholder - carregar do env se necessário
-          tipoConta: "CORRENTE",
-        },
         infoAdicional: `Parcela ${competencia} - ${rec.event.name}`,
       });
 

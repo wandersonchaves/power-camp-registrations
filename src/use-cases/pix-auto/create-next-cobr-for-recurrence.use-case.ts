@@ -1,3 +1,4 @@
+import efiConfig from "@/config/efiConfig";
 import { pixAutoClient } from "@/infra/efi/pix-auto.client";
 import type {
   CobrResponse,
@@ -160,6 +161,8 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
   });
 
   // Prepara o body conforme o schema estrito da Efí para cobranças recorrentes
+  // Nota: Devedor em /v2/cobr (recorrência) não aceita cpf/nome, pois já estão no idRec.
+  // Recebedor é obrigatório para este endpoint.
   const putBody: CreateCobrRequest = {
     idRec: rec.idRec,
     calendario: { dataDeVencimento: finalDueDate },
@@ -167,24 +170,19 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
       original: amount,
     },
     infoAdicional: input.infoAdicional || undefined,
-    ajusteDiaUtil: input.ajusteDiaUtil ?? true, // Re-incluído conforme documentação
-    devedor: {
-      cpf: rec.participant.cpf,
-      nome: rec.participant.fullName,
+    ajusteDiaUtil: input.ajusteDiaUtil ?? true,
+    recebedor: {
+      agencia: input.recebedor?.agencia ?? efiConfig.recebedor.agencia,
+      conta: input.recebedor?.conta ?? efiConfig.recebedor.conta,
+      tipoConta: input.recebedor?.tipoConta ?? efiConfig.recebedor.tipoConta,
     },
   };
 
   // Se houver dados adicionais de endereço no input, mescla-os
   if (input.devedor) {
     putBody.devedor = {
-      ...putBody.devedor,
       ...input.devedor,
     };
-  }
-
-  // Opcional: só adiciona recebedor se houver dados reais
-  if (input.recebedor && input.recebedor.conta) {
-    putBody.recebedor = input.recebedor;
   }
 
   const resp = await pixAutoClient.cobr.put(txid, putBody);
