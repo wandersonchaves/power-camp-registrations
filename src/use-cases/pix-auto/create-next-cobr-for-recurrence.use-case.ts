@@ -119,7 +119,7 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
     return existingForMonth;
   }
 
-  // 2. txid determinístico (estável) - se já existe um registro, reusamos o txid/dueDate dele
+  // 2. txid determinístico (estável) - se já existe um registro, reusamos o txid
   const txid =
     existingForMonth?.txid ||
     buildTxid({
@@ -129,9 +129,17 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
       dueDate,
     });
 
-  const finalDueDate = existingForMonth
-    ? existingForMonth.dataVencimento.toISOString().split("T")[0]
-    : dueDate;
+  // Se já existe no banco, verificamos se a data original ainda é válida (D+2)
+  // Se não for, usamos a nova 'dueDate' calculada pelo batch
+  let finalDueDate = dueDate;
+  if (existingForMonth) {
+    const originalDate = existingForMonth.dataVencimento
+      .toISOString()
+      .split("T")[0];
+    if (diffDaysUTC(originalDate) >= 2) {
+      finalDueDate = originalDate;
+    }
+  }
 
   // 3. Define a idempotencyKey
   const idempotencyKey =
@@ -146,6 +154,7 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
     where: { idempotencyKey },
     update: {
       status: "CREATING",
+      dataVencimento: new Date(`${finalDueDate}T00:00:00.000Z`),
     },
     create: {
       idempotencyKey,
