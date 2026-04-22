@@ -126,7 +126,7 @@ export async function runTeamRecurrenceBatchUseCase(input: Input) {
       if (rec.status === "APROVADA" || rec.status === "ATIVA") {
         const recurrenceStart = new Date(rec.dataInicial);
         const minAllowedDate = new Date(now.getTime());
-        minAllowedDate.setUTCDate(now.getUTCDate() + 2);
+        minAllowedDate.setUTCDate(now.getUTCDate() + 3);
 
         let finalDueDate: Date;
         if (recurrenceStart > minAllowedDate) {

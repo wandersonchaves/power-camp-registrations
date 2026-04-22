@@ -89,11 +89,11 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
   if (!rec?.idRec)
     throw new AppError("Recurrence not ready", 409, "REC_NOT_READY");
 
-  // regra local: pelo menos 2 dias de antecedência (UTC) — evita erro bobo
+  // regra local: pelo menos 3 dias de antecedência (UTC) — evita erro de fuso horário/horário limite
   const d = diffDaysUTC(dueDate);
-  if (d < 2) {
+  if (d < 3) {
     throw new AppError(
-      "dueDate must be at least 2 days ahead",
+      "dueDate must be at least 3 days ahead",
       400,
       "INVALID_DUE_DATE",
       { dueDate, diffDays: d },
@@ -129,14 +129,14 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
       dueDate,
     });
 
-  // Se já existe no banco, verificamos se a data original ainda é válida (D+2)
+  // Se já existe no banco, verificamos se a data original ainda é válida (D+3)
   // Se não for, usamos a nova 'dueDate' calculada pelo batch
   let finalDueDate = dueDate;
   if (existingForMonth) {
     const originalDate = existingForMonth.dataVencimento
       .toISOString()
       .split("T")[0];
-    if (diffDaysUTC(originalDate) >= 2) {
+    if (diffDaysUTC(originalDate) >= 3) {
       finalDueDate = originalDate;
     }
   }
