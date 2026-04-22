@@ -4,6 +4,7 @@ import { addDays } from "date-fns";
 import { createNextCobrForRecurrenceUseCase } from "./create-next-cobr-for-recurrence.use-case";
 import { createSolicRecUseCase } from "./create-solicrec.use-case";
 
+import efiConfig from "@/config/efiConfig";
 import { pixAutoClient } from "@/infra/efi/pix-auto.client";
 import { prisma } from "@/lib/prisma";
 
@@ -108,10 +109,10 @@ export async function runTeamRecurrenceBatchUseCase(input: Input) {
           recurrenceId: rec.id,
           dataExpiracaoSolicitacaoISO: addDays(now, 7).toISOString(),
           destinatario: {
-            agencia: "1823",
-            conta: "54940917",
-            cpf: rec.participant.cpf,
-            ispbParticipante: "18236120",
+            agencia: efiConfig.recebedor.agencia,
+            conta: efiConfig.recebedor.conta,
+            cpf: rec.participant.cpf, // FIXME: Deveria ser o CPF/CNPJ do recebedor, mas mantendo conforme original
+            ispbParticipante: efiConfig.recebedor.ispb,
           },
         });
         console.log(

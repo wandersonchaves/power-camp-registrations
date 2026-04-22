@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 
+import efiConfig from "@/config/efiConfig";
 import { pixAutoClient } from "@/infra/efi/pix-auto.client";
 import { generateTxid } from "@/infra/efi/txid";
 import { logger } from "@/lib/logger";
@@ -34,16 +35,12 @@ export async function createJ2MonthlyCharge(
   try {
     const dataVencimento = calculateDueDate(competencia);
 
-    // Pegamos o tipo esperado pelo SDK para o campo 'devedor' dinamicamente
-    type PutParams = Parameters<typeof pixAutoClient.cobr.put>;
-    type DevedorType = PutParams[1]["devedor"];
-
     const efiResponse = await pixAutoClient.cobr.put(txid, {
       idRec: recurrence.idRec!,
       calendario: { dataDeVencimento: dataVencimento },
       valor: { original: recurrence.valorRec },
-      devedor: { cpf: recurrence.participant.cpf } as unknown as DevedorType,
       infoAdicional: "Competência " + competencia,
+      recebedor: efiConfig.recebedor,
     });
 
     return await prisma.pixAutoCobr.create({

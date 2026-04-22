@@ -1,4 +1,5 @@
 // src/use-cases/pix-auto/create-cobr.use-case.ts
+import efiConfig from "@/config/efiConfig";
 import { pixAutoClient } from "@/infra/efi/pix-auto.client";
 import type { CobrResponse } from "@/infra/efi/pix-auto.types";
 import { sha256 } from "@/lib/crypto";
@@ -129,7 +130,11 @@ export async function createCobrUseCase(input: Input) {
     valor: { original: valorOriginal },
     ajusteDiaUtil: input.ajusteDiaUtil ?? false,
     devedor: input.devedor,
-    recebedor: input.recebedor,
+    recebedor: {
+      agencia: input.recebedor?.agencia ?? efiConfig.recebedor.agencia,
+      conta: input.recebedor?.conta ?? efiConfig.recebedor.conta,
+      tipoConta: input.recebedor?.tipoConta ?? efiConfig.recebedor.tipoConta,
+    },
   };
 
   // PUT /v2/cobr/:txid (controlado) OU POST /v2/cobr (PSP gera txid)
