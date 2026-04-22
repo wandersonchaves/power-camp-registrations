@@ -180,7 +180,8 @@ export async function getRecurringSummary(params: { eventId: string }) {
 
   const summary = await Promise.all(
     teams.map(async (t) => {
-      const recurrences = await prisma.pixAutoRecurrence.findMany({
+      // 1. Buscamos todas as recorrências ativas da equipe
+      const activeRecurrences = await prisma.pixAutoRecurrence.findMany({
         where: {
           eventId: params.eventId,
           status: { in: ["APROVADA", "CRIADA", "ATIVA"] },
@@ -194,21 +195,23 @@ export async function getRecurringSummary(params: { eventId: string }) {
               },
             },
           },
-          // Permitir se não houver cobrança ativa ou paga no mês
+        },
+        include: {
           charges: {
-            none: {
+            where: {
               competencia,
-              status: { in: ["ATIVA", "CONCLUIDA", "PAGO"] },
+              status: { in: ["ATIVA", "CONCLUIDA", "PAGO", "AGENDADA"] },
             },
           },
         },
-        select: {
-          id: true,
-          valorRec: true,
-        },
       });
 
-      const totalValue = recurrences.reduce(
+      // 2. Filtramos apenas as que AINDA não foram geradas para o mês atual
+      const pendingGeneration = activeRecurrences.filter(
+        (r) => r.charges.length === 0,
+      );
+
+      const totalMonthlyValue = activeRecurrences.reduce(
         (acc, r) => acc + Number(r.valorRec),
         0,
       );
@@ -216,8 +219,9 @@ export async function getRecurringSummary(params: { eventId: string }) {
       return {
         teamCode: t.code,
         teamName: t.name,
-        activeCount: recurrences.length,
-        totalMonthlyValue: totalValue.toFixed(2),
+        activeCount: pendingGeneration.length, // Agora representa "Pendentes de Cobrança"
+        totalActiveLeaders: activeRecurrences.length,
+        totalMonthlyValue: totalMonthlyValue.toFixed(2),
       };
     }),
   );

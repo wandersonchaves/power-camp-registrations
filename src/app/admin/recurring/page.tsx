@@ -48,7 +48,9 @@ export default async function RecurringPage() {
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-sm font-semibold">{s.teamName}</div>
-                <div className="mt-1 text-3xl font-bold">{s.activeCount}</div>
+                <div className="mt-1 text-3xl font-bold">
+                  {s.totalActiveLeaders}
+                </div>
                 <div className="text-xs text-gray-500">Líder Pagador Ativo</div>
               </div>
               <div className="text-right">
@@ -62,10 +64,16 @@ export default async function RecurringPage() {
             </div>
 
             <div className="mt-6">
-              <RunBatchButton
-                teamCode={s.teamCode as "AGUIA" | "LEAO"}
-                competencia={defaultCompetencia}
-              />
+              {s.activeCount === 0 && s.totalActiveLeaders > 0 ? (
+                <div className="rounded-lg bg-emerald-50 p-3 text-center text-xs font-medium text-emerald-700">
+                  Cobrança de {defaultCompetencia} já processada
+                </div>
+              ) : (
+                <RunBatchButton
+                  teamCode={s.teamCode as "AGUIA" | "LEAO"}
+                  competencia={defaultCompetencia}
+                />
+              )}
             </div>
           </div>
         ))}
