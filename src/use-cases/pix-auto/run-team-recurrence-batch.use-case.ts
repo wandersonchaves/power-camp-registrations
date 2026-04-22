@@ -37,6 +37,14 @@ export async function runTeamRecurrenceBatchUseCase(input: Input) {
     where: {
       eventId,
       status: { in: ["APROVADA", "CRIADA", "ATIVA"] },
+      // Importante: para lotes de equipe, processamos apenas a recorrência coletiva (lider)
+      ...(teamCode
+        ? {
+            objeto: {
+              contains: "Equipe",
+            },
+          }
+        : {}),
       participant: {
         enrollments: {
           some: {

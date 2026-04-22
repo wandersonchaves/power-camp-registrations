@@ -37,6 +37,14 @@ export async function POST(req: Request) {
       where: {
         eventId,
         status: { in: ["APROVADA", "CRIADA", "ATIVA"] },
+        // Filtro para garantir que pegamos apenas recorrências de equipe se for o caso
+        ...(body.teamCode
+          ? {
+              objeto: {
+                contains: "Equipe", // ou "Coletiva"
+              },
+            }
+          : {}),
         participant: {
           enrollments: {
             some: {
