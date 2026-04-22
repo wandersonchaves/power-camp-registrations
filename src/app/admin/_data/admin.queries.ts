@@ -230,6 +230,7 @@ export async function getInstallmentTracking(params: { eventId: string }) {
     where: {
       eventId: params.eventId,
       objeto: { contains: "Equipe" },
+      status: { in: ["APROVADA", "CRIADA", "ATIVA"] },
     },
     select: {
       id: true,

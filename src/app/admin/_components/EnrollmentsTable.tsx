@@ -100,14 +100,14 @@ export function EnrollmentsTable(props: { items: EnrollmentRow[] }) {
                       <button
                         onClick={() => handleSetLeader(r.enrollmentId)}
                         disabled={isPending}
-                        className="flex items-center gap-1 rounded-lg border bg-amber-50 px-2 py-1.5 font-semibold text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-50"
+                        title="Definir como Líder Pagador"
+                        className="flex items-center gap-1 rounded-full border bg-gray-50 p-2 text-gray-400 transition-colors hover:bg-amber-50 hover:text-amber-600 disabled:opacity-50"
                       >
                         {loadingId === r.enrollmentId ? (
-                          <Loader2 className="size-3 animate-spin" />
+                          <Loader2 className="size-3.5 animate-spin" />
                         ) : (
-                          <Crown className="size-3" />
+                          <Crown className="size-3.5" />
                         )}
-                        Tornar Líder
                       </button>
                     )}
                 </td>
