@@ -11,6 +11,7 @@ import type {
 } from "@/infra/efi/pix-auto.types";
 import { prisma } from "@/lib/prisma";
 import { asInputJson } from "@/lib/prisma-json";
+import { reconcilePendingCobs } from "@/use-cases/reconcile/reconcile-pending-cobs.use-case";
 
 type EfiCobrLite = Pick<CobrResponse, "txid" | "status" | "pix">;
 
@@ -185,7 +186,7 @@ async function reconcileCobr(startIso: string, endIso: string) {
 }
 
 async function main() {
-  const start = daysAgo(14);
+  const start = daysAgo(30);
   const end = new Date().toISOString();
 
   console.log("==== EFI WEEKLY RECONCILIATION START ====");
@@ -197,6 +198,10 @@ async function main() {
   } catch (err) {
     console.error("[COBR] skipped due to error", err);
   }
+
+  console.log("==== CHECKING REMAINING PENDING COBS ====");
+  const pendingResults = await reconcilePendingCobs({ limit: 500 });
+  console.log("[PENDING]", pendingResults);
 
   console.log("==== EFI WEEKLY RECONCILIATION DONE ====");
 }
