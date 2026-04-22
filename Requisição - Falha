@@ -1,0 +1,57 @@
+Requisição - Falha
+Detalhes da requisição
+Data de execução - 21/04/2026 - 22:22:21
+
+Endpoint - /v2/cobr/083c36fe45fa419c9896d03e750d5598
+
+Método - PUT
+Identificador - d358ca6f-b670-4933-be75-c35a27f78576
+
+Dados de entrada
+{
+  "idRec": "RN0908935620260320eb2e78e95bd",
+  "calendario": {
+    "dataDeVencimento": "2026-04-23"
+  },
+  "valor": {
+    "original": "933.30"
+  },
+  "infoAdicional": "Parcela 2026-04 - PowerCamp 2027",
+  "ajusteDiaUtil": true
+}
+{
+  "idRec": "RN0908935620260320eb2e78e95bd",
+  "calendario": {
+    "dataDeVencimento": "2026-04-23"
+  },
+  "valor": {
+    "original": "933.30"
+  },
+  "infoAdicional": "Parcela 2026-04 - PowerCamp 2027",
+  "ajusteDiaUtil": true
+}
+Dados de saída
+{
+  "type": "https://pix.bcb.gov.br/api/v2/error/CobROperacaoInvalida",
+  "title": "Operacao Invalida",
+  "status": 400,
+  "detail": "A requisição que busca alterar ou criar uma cobrança recorrente não respeita o schema ou está semanticamente errada.",
+  "violacoes": [
+    {
+      "razao": "O objeto cobr não respeita o schema.",
+      "propriedade": "body"
+    }
+  ]
+}
+{
+  "type": "https://pix.bcb.gov.br/api/v2/error/CobROperacaoInvalida",
+  "title": "Operacao Invalida",
+  "status": 400,
+  "detail": "A requisição que busca alterar ou criar uma cobrança recorrente não respeita o schema ou está semanticamente errada.",
+  "violacoes": [
+    {
+      "razao": "O objeto cobr não respeita o schema.",
+      "propriedade": "body"
+    }
+  ]
+}
