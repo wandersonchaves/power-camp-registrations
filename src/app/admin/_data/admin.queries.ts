@@ -184,6 +184,7 @@ export async function getRecurringSummary(params: { eventId: string }) {
         where: {
           eventId: params.eventId,
           status: { in: ["APROVADA", "CRIADA", "ATIVA"] },
+          objeto: { contains: "Equipe" },
           participant: {
             enrollments: {
               some: {
