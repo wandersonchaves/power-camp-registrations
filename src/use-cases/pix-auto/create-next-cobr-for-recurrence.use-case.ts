@@ -102,34 +102,43 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
   // competencia baseada no vencimento (YYYY-MM)
   const competencia = dueDate.slice(0, 7);
 
-  // txid determinístico (estável)
-  const txid = buildTxid({
-    eventId,
-    kind: "COBR_RECURRING",
-    recurrenceIdRec: rec.idRec,
-    dueDate,
-  });
-
-  // 1. Idempotência por (recurrenceId, competencia) - Já existe algo resolvido?
-  const existingActive = await prisma.pixAutoCobr.findFirst({
+  // 1. Idempotência por (recurrenceId, competencia) - Já existe algo para este mês?
+  const existingForMonth = await prisma.pixAutoCobr.findFirst({
     where: {
       recurrenceId: rec.id,
       competencia,
-      status: { in: ["ATIVA", "CONCLUIDA", "PAGO"] },
     },
   });
-  if (existingActive) return existingActive;
 
-  // 2. Busca se já existe um registro com este txid (mesmo que falho ou incompleto)
-  const existingByTxid = await prisma.pixAutoCobr.findUnique({
-    where: { txid },
-  });
+  // Se já existe e está em status terminal positivo, retorna
+  if (
+    existingForMonth &&
+    ["ATIVA", "CONCLUIDA", "PAGO"].includes(existingForMonth.status)
+  ) {
+    return existingForMonth;
+  }
+
+  // 2. txid determinístico (estável) - se já existe um registro, reusamos o txid/dueDate dele
+  const txid =
+    existingForMonth?.txid ||
+    buildTxid({
+      eventId,
+      kind: "COBR_RECURRING",
+      recurrenceIdRec: rec.idRec,
+      dueDate,
+    });
+
+  const finalDueDate = existingForMonth
+    ? existingForMonth.dataVencimento.toISOString().split("T")[0]
+    : dueDate;
 
   // 3. Define a idempotencyKey
   const idempotencyKey =
-    existingByTxid?.idempotencyKey ||
+    existingForMonth?.idempotencyKey ||
     sha256(
-      ["COBR_NEXT_V6", rec.id, competencia, txid, dueDate, amount].join("|"),
+      ["COBR_NEXT_V6", rec.id, competencia, txid, finalDueDate, amount].join(
+        "|",
+      ),
     );
 
   const draft = await prisma.pixAutoCobr.upsert({
@@ -143,7 +152,7 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
       txid,
       competencia,
       status: "CREATING",
-      dataVencimento: new Date(`${dueDate}T00:00:00.000Z`),
+      dataVencimento: new Date(`${finalDueDate}T00:00:00.000Z`),
       valorOriginal: amount,
       infoAdicional: input.infoAdicional ?? null,
       ajusteDiaUtil: input.ajusteDiaUtil ?? true,
@@ -153,7 +162,7 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
   // Prepara o body conforme o schema estrito da Efí para cobranças recorrentes
   const putBody: CreateCobrRequest = {
     idRec: rec.idRec,
-    calendario: { dataDeVencimento: dueDate },
+    calendario: { dataDeVencimento: finalDueDate },
     valor: {
       original: amount,
     },
