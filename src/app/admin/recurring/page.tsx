@@ -1,6 +1,10 @@
 import { format } from "date-fns";
 
-import { getRecurringSummary } from "../_data/admin.queries";
+import {
+  getInstallmentTracking,
+  getRecurringSummary,
+} from "../_data/admin.queries";
+import { InstallmentTracking } from "./InstallmentTracking";
 import { RunBatchButton } from "./RecurringClient";
 
 export const runtime = "nodejs";
@@ -16,16 +20,23 @@ export default async function RecurringPage() {
   // Sugestão de vencimento (mínimo D+2 da Efí se for gerar hoje)
   const suggestedDay = Math.max(now.getDate() + 2, 22);
 
-  const summary = await getRecurringSummary({ eventId });
+  const [summary, installmentData] = await Promise.all([
+    getRecurringSummary({ eventId }),
+    getInstallmentTracking({ eventId }),
+  ]);
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Pagamentos Recorrentes</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          Gerencie a geração manual de cobranças PIX Recorrência para os Líderes
-          de Equipe.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900">
+            Pagamentos Recorrentes
+          </h1>
+          <p className="mt-1 text-sm text-gray-600">
+            Gerencie a geração manual de cobranças PIX Recorrência para os
+            Líderes de Equipe.
+          </p>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -67,6 +78,8 @@ export default async function RecurringPage() {
         </p>
         <RunBatchButton competencia={defaultCompetencia} />
       </div>
+
+      <InstallmentTracking data={installmentData} />
 
       <div className="rounded-2xl border bg-white p-6 shadow-sm">
         <h2 className="mb-3 text-sm font-semibold">Informações Importantes</h2>

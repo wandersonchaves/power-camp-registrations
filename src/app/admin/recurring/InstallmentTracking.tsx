@@ -1,0 +1,173 @@
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { CheckCircle2, Clock } from "lucide-react";
+
+interface MonthlyCharge {
+  competencia: string | null;
+  status: string;
+  paidAt: Date | null;
+  valorOriginal: string;
+}
+
+interface InstallmentItem {
+  id: string;
+  participantName: string;
+  valorEquipe: string;
+  initial: {
+    status: string;
+    paidAt: Date | null;
+    amount: string;
+  };
+  monthlyCharges: MonthlyCharge[];
+}
+
+interface InstallmentTrackingProps {
+  data: InstallmentItem[];
+}
+
+export function InstallmentTracking({ data }: InstallmentTrackingProps) {
+  return (
+    <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
+      <div className="border-b bg-gray-50 px-6 py-4">
+        <h2 className="font-semibold text-gray-800">
+          Acompanhamento de Parcelas (Líderes)
+        </h2>
+        <p className="mt-1 text-xs text-gray-500">
+          Visualização consolidada do Mês 1 (Inscrição) e meses seguintes
+          (Recorrência Coletiva).
+        </p>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-sm">
+          <thead>
+            <tr className="border-b bg-gray-50/50">
+              <th className="px-6 py-3 font-bold text-gray-700">Líder</th>
+              <th className="px-6 py-3 text-center font-bold text-gray-700">
+                Mês 1 (Inscrição)
+              </th>
+              <th className="px-6 py-3 font-bold text-gray-700">
+                Mensalidades Seguintes
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {data.map((item) => (
+              <tr
+                key={item.id}
+                className="transition-colors hover:bg-gray-50/50"
+              >
+                <td className="px-6 py-4">
+                  <div className="font-semibold text-gray-900">
+                    {item.participantName}
+                  </div>
+                  <div className="mt-1 text-xs italic text-gray-500">
+                    Coletivo: R$ {item.valorEquipe}
+                  </div>
+                </td>
+
+                <td className="px-6 py-4 text-center">
+                  <StatusBadge
+                    status={
+                      item.initial.status === "CONFIRMED" ? "PAID" : "PENDING"
+                    }
+                    date={item.initial.paidAt}
+                  />
+                </td>
+
+                <td className="px-6 py-4">
+                  <div className="flex flex-wrap gap-3">
+                    {item.monthlyCharges.length === 0 ? (
+                      <span className="text-xs italic text-gray-400">
+                        Nenhuma parcela gerada ainda
+                      </span>
+                    ) : (
+                      item.monthlyCharges.map((charge) => (
+                        <div
+                          key={charge.competencia || "initial"}
+                          className="flex min-w-[80px] flex-col items-center gap-1 rounded-lg border bg-gray-50 p-2"
+                        >
+                          <span className="text-[10px] font-bold uppercase tracking-tight text-gray-500">
+                            {charge.competencia}
+                          </span>
+                          <StatusBadge
+                            status={
+                              charge.status === "CONCLUIDA" ||
+                              charge.status === "PAGO" ||
+                              charge.status === "PAID"
+                                ? "PAID"
+                                : "PENDING"
+                            }
+                            date={charge.paidAt}
+                            size="sm"
+                          />
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function StatusBadge({
+  status,
+  date,
+  size = "md",
+}: {
+  status: "PAID" | "PENDING";
+  date?: Date | string | null;
+  size?: "sm" | "md";
+}) {
+  const isPaid = status === "PAID";
+
+  if (size === "sm") {
+    return (
+      <div
+        title={
+          isPaid && date
+            ? `Pago em: ${format(new Date(date), "dd/MM/yyyy HH:mm")}`
+            : "Pendente"
+        }
+      >
+        {isPaid ? (
+          <CheckCircle2 className="size-5 text-emerald-500" />
+        ) : (
+          <Clock className="size-5 text-amber-500" />
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <div
+        className={`
+        inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold
+        ${
+          isPaid
+            ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+            : "border border-amber-200 bg-amber-50 text-amber-700"
+        }
+      `}
+      >
+        {isPaid ? (
+          <CheckCircle2 className="size-3.5" />
+        ) : (
+          <Clock className="size-3.5" />
+        )}
+        {isPaid ? "PAGO" : "PENDENTE"}
+      </div>
+      {isPaid && date && (
+        <span className="text-[10px] text-gray-400">
+          {format(new Date(date), "dd/MM/yy", { locale: ptBR })}
+        </span>
+      )}
+    </div>
+  );
+}
