@@ -167,17 +167,23 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
       original: amount,
     },
     infoAdicional: input.infoAdicional || undefined,
-    ajusteDiaUtil: input.ajusteDiaUtil ?? true,
+    devedor: {
+      cpf: rec.participant.cpf,
+      nome: rec.participant.fullName,
+    },
   };
+
+  // Se houver dados adicionais de endereço no input, mescla-os
+  if (input.devedor) {
+    putBody.devedor = {
+      ...putBody.devedor,
+      ...input.devedor,
+    };
+  }
 
   // Opcional: só adiciona recebedor se houver dados reais
   if (input.recebedor && input.recebedor.conta) {
     putBody.recebedor = input.recebedor;
-  }
-
-  // Opcional: só adiciona devedor se houver dados de ENDEREÇO
-  if (input.devedor && Object.keys(input.devedor).length > 0) {
-    putBody.devedor = input.devedor;
   }
 
   const resp = await pixAutoClient.cobr.put(txid, putBody);
