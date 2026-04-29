@@ -67,9 +67,25 @@ export function RunBatchButton({
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.message || "Erro ao rodar batch");
 
+      if (data.failed > 0) {
+        interface BatchDetail {
+          status: string;
+          error?: string;
+        }
+        data.details
+          .filter((d: BatchDetail) => d.status === "failed")
+          .forEach((d: BatchDetail) => {
+            toast({
+              title: "Falha na cobrança",
+              description: d.error || "Erro desconhecido",
+              variant: "destructive",
+            });
+          });
+      }
+
       toast({
-        title: "Batch executado com sucesso",
-        description: `Geradas ${data.success} cobranças. Falhas: ${data.failed}.`,
+        title: "Batch executado",
+        description: `Sucesso: ${data.success}. Falhas: ${data.failed}.`,
       });
       router.refresh();
     } catch (err) {
