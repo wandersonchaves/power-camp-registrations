@@ -164,8 +164,19 @@ export async function runTeamRecurrenceBatchUseCase(input: Input) {
           `[BATCH] ℹ️ Recurrence ${rec.idRec} in status ${rec.status}. Skipping charge generation.`,
         );
       }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
+    } catch (err: unknown) {
+      // Captura mensagem detalhada da EFI se disponível
+      const axiosError = err as {
+        response?: {
+          data?: { violacoes?: Array<{ razao: string }>; mensagem?: string };
+        };
+      };
+      const efiError =
+        axiosError?.response?.data?.violacoes?.[0]?.razao ||
+        axiosError?.response?.data?.mensagem;
+      const errorMessage =
+        efiError || (err instanceof Error ? err.message : String(err));
+
       console.error(`[BATCH] ❌ Failed for ${rec.idRec}: ${errorMessage}`);
       results.failed++;
       results.details.push({

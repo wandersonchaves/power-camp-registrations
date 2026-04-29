@@ -120,14 +120,20 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
   }
 
   // 2. txid determinístico (estável) - se já existe um registro, reusamos o txid
+  // Exceto se o status for falho, nesse caso forçamos um novo para evitar "TXID em uso"
+  const isFailed =
+    existingForMonth &&
+    ["REJEITADA", "FALHA", "ERRO"].includes(existingForMonth.status);
+
   const txid =
-    existingForMonth?.txid ||
-    buildTxid({
-      eventId,
-      kind: "COBR_RECURRING",
-      recurrenceIdRec: rec.idRec,
-      dueDate,
-    });
+    existingForMonth && !isFailed
+      ? existingForMonth.txid
+      : buildTxid({
+          eventId,
+          kind: "COBR_RECURRING",
+          recurrenceIdRec: rec.idRec,
+          dueDate: isFailed ? `${dueDate}-${Date.now()}` : dueDate, // Sufixo para novo TXID se falhou antes
+        });
 
   // Se já existe no banco, verificamos se a data original ainda é válida (D+2)
   // Se não for, usamos a nova 'dueDate' calculada pelo batch
