@@ -121,13 +121,14 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
 
   // 2. txid determinístico (estável) - se já existe um registro, reusamos o txid
   // Exceto se o status for falho, nesse caso forçamos um novo para evitar "TXID em uso"
-  const isFailed =
+  const isFailed = !!(
     existingForMonth &&
-    ["REJEITADA", "FALHA", "ERRO"].includes(existingForMonth.status);
+    ["REJEITADA", "FALHA", "ERRO"].includes(existingForMonth.status)
+  );
 
-  const txid =
+  const txid: string =
     existingForMonth && !isFailed
-      ? existingForMonth.txid
+      ? (existingForMonth.txid ?? "")
       : buildTxid({
           eventId,
           kind: "COBR_RECURRING",
