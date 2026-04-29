@@ -254,6 +254,7 @@ export async function getInstallmentTracking(params: { eventId: string }) {
           status: true,
           paidAt: true,
           valorOriginal: true,
+          politicaRetentativa: true,
         },
       },
     },
