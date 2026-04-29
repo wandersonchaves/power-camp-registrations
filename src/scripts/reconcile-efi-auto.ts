@@ -1,19 +1,10 @@
-// src/scripts/reconcile-efi-auto.ts
-/* eslint-disable no-console */
-import type { Prisma } from "@prisma/client";
-
 import { pixAutoClient } from "@/infra/efi/pix-auto.client";
 import { extractPixLite } from "@/infra/efi/pix-auto.guards";
-import type {
-  CobrListResponse,
-  CobrResponse,
-  EfiCobLite,
-} from "@/infra/efi/pix-auto.types";
+import type { CobrListResponse, EfiCobLite } from "@/infra/efi/pix-auto.types";
 import { prisma } from "@/lib/prisma";
 import { asInputJson } from "@/lib/prisma-json";
+import { syncEfiCobrList } from "@/use-cases/pix-auto/sync-efi-cobr.use-case";
 import { reconcilePendingCobs } from "@/use-cases/reconcile/reconcile-pending-cobs.use-case";
-
-type EfiCobrLite = Pick<CobrResponse, "txid" | "status" | "pix">;
 
 function daysAgo(days: number) {
   const d = new Date();
@@ -21,36 +12,7 @@ function daysAgo(days: number) {
   return d.toISOString();
 }
 
-function upper(v: unknown) {
-  return String(v ?? "")
-    .toUpperCase()
-    .trim();
-}
-
-/**
- * Prisma Json fields NÃO aceitam `unknown`.
- * Garanta `Prisma.InputJsonValue` via asInputJson (helper do seu projeto).
- */
-function toPrismaJson(value: unknown): Prisma.InputJsonValue {
-  return asInputJson(value);
-}
-
-function getCobrsFromListResponse(res: CobrListResponse): EfiCobrLite[] {
-  // Compat: alguns retornos usam `cobsr`, outros `cobrs`.
-  // Fazemos narrowing por "in" com unknown.
-  const asAny = res as unknown as Record<string, unknown>;
-
-  const cobsr = asAny["cobsr"];
-  if (Array.isArray(cobsr)) return cobsr as EfiCobrLite[];
-
-  const cobrs = asAny["cobrs"];
-  if (Array.isArray(cobrs)) return cobrs as EfiCobrLite[];
-
-  return [];
-}
-
 function toEfiIso(d: Date) {
-  // remove milissegundos: 2026-02-28T09:47:30Z
   return d.toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 
@@ -77,12 +39,7 @@ async function reconcileCob(startIso: string, endIso: string) {
       txids.length > 0
         ? await prisma.initialPaymentAttempt.findMany({
             where: { txid: { in: txids } },
-            select: {
-              id: true,
-              txid: true,
-              enrollmentId: true,
-              paidAt: true,
-            },
+            select: { id: true, txid: true, enrollmentId: true, paidAt: true },
           })
         : [];
 
@@ -106,16 +63,13 @@ async function reconcileCob(startIso: string, endIso: string) {
             data: {
               status: "PAID",
               paidAt: attempt.paidAt ?? paidAt,
-              payload: toPrismaJson(cob), // ✅ Prisma InputJsonValue
+              payload: asInputJson(cob),
             },
           });
 
           await tx.enrollment.update({
             where: { id: attempt.enrollmentId },
-            data: {
-              status: "CONFIRMED",
-              confirmedAt: new Date(),
-            },
+            data: { status: "CONFIRMED", confirmedAt: new Date() },
           });
         });
 
@@ -141,42 +95,14 @@ async function reconcileCobr(startIso: string, endIso: string) {
       "paginacao.itensPorPagina": itensPorPagina,
     });
 
-    const cobrs = getCobrsFromListResponse(res);
+    const cobrs = res.cobsr || [];
     const pag = res.parametros?.paginacao;
 
     console.log(`[COBR] page=${paginaAtual} items=${cobrs.length}`);
 
-    const txids = cobrs.map((c) => String(c.txid ?? "").trim()).filter(Boolean);
-
-    const localCharges =
-      txids.length > 0
-        ? await prisma.pixAutoCobr.findMany({
-            where: { txid: { in: txids } },
-            select: { id: true, txid: true },
-          })
-        : [];
-
-    const byTxid = new Map(localCharges.map((c) => [String(c.txid ?? ""), c]));
-
-    for (const cobr of cobrs) {
-      const txid = String(cobr.txid ?? "").trim();
-      if (!txid) continue;
-
-      const pixArr = extractPixLite(cobr.pix);
-      const local = byTxid.get(txid);
-      if (!local) continue;
-
-      await prisma.pixAutoCobr.update({
-        where: { id: local.id },
-        data: {
-          status: upper(cobr.status),
-          payload: toPrismaJson(cobr), // ✅ Prisma InputJsonValue
-        },
-      });
-
-      if (pixArr.length > 0) {
-        console.log(`[COBR] PAID reconciled txid=${txid}`);
-      }
+    if (cobrs.length > 0) {
+      const result = await syncEfiCobrList(cobrs);
+      console.log(`[COBR] Sync Result:`, result);
     }
 
     const totalPages = pag?.quantidadeDePaginas ?? 0;
@@ -192,11 +118,16 @@ async function main() {
   console.log("==== EFI WEEKLY RECONCILIATION START ====");
   console.log(`Window: ${start} → ${end}`);
 
-  await reconcileCob(start, end);
+  try {
+    await reconcileCob(start, end);
+  } catch (err) {
+    console.error("[COB] error", err);
+  }
+
   try {
     await reconcileCobr(start, end);
   } catch (err) {
-    console.error("[COBR] skipped due to error", err);
+    console.error("[COBR] error", err);
   }
 
   console.log("==== CHECKING REMAINING PENDING COBS ====");
