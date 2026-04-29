@@ -115,7 +115,7 @@ export async function createRecurrenceUseCase(input: Input) {
       periodicidade,
     },
     valor: { valorRec },
-    politicaRetentativa: "NAO_PERMITE" as const,
+    politicaRetentativa: "PERMITE_3R_7D" as const,
     ...(input.locId ? { loc: input.locId } : {}),
     ...(input.ativacaoTxid
       ? { ativacao: { dadosJornada: { txid: input.ativacaoTxid } } }

@@ -126,7 +126,7 @@ export async function setTeamLeaderAction(enrollmentId: string) {
         periodicidade: "MENSAL" as const,
       },
       valor: { valorRec: teamRecurringAmount },
-      politicaRetentativa: "NAO_PERMITE" as const,
+      politicaRetentativa: "PERMITE_3R_7D" as const,
       loc: locrec.id,
       ativacao: { dadosJornada: { txid: txidAtivacao } },
     };
