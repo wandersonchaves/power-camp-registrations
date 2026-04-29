@@ -1,3 +1,5 @@
+import { nanoid } from "nanoid";
+
 import efiConfig from "@/config/efiConfig";
 import { pixAutoClient } from "@/infra/efi/pix-auto.client";
 import type {
@@ -120,7 +122,7 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
   }
 
   // 2. txid determinístico (estável) - se já existe um registro, reusamos o txid
-  // Exceto se o status for falho ou expirado, nesse caso forçamos um novo para evitar "TXID em uso"
+  // Exceto se o status for falho ou expirado, nesse caso forçamos um novo aleatório
   const isFailed = !!(
     existingForMonth &&
     ["REJEITADA", "FALHA", "ERRO", "EXPIRADA"].includes(existingForMonth.status)
@@ -129,13 +131,14 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
   const txid: string =
     existingForMonth && !isFailed
       ? (existingForMonth.txid ?? "")
-      : buildTxid({
-          eventId,
-          kind: "COBR_RECURRING",
-          recurrenceIdRec: rec.idRec,
-          // Se falhou, usamos um timestamp para garantir que o buildTxid gere algo diferente
-          dueDate: isFailed ? `${dueDate}-${new Date().getTime()}` : dueDate,
-        });
+      : isFailed
+        ? `cobr${nanoid(26)}` // Novo ID aleatório garantido
+        : buildTxid({
+            eventId,
+            kind: "COBR_RECURRING",
+            recurrenceIdRec: rec.idRec,
+            dueDate,
+          });
 
   // Se já existe no banco, verificamos se a data original ainda é válida (D+2)
   // Se não for, usamos a nova 'dueDate' calculada pelo batch
