@@ -511,6 +511,26 @@ export const pixAutoClient = {
         },
       );
     },
+
+    async retry(txid: string, dataLiquidacao: string): Promise<CobrResponse> {
+      const safeTxid = normalizeTxid(txid);
+      const http = getEfiHttpClient();
+      return withAxiosLog(
+        http,
+        {
+          op: "POST /v2/cobr/:txid/retentativa/:data",
+          url: `/v2/cobr/${safeTxid}/retentativa/${dataLiquidacao}`,
+          method: "POST",
+          txid: safeTxid,
+        },
+        async () => {
+          const res = await http.post<CobrResponse>(
+            `/v2/cobr/${encodeURIComponent(safeTxid)}/retentativa/${dataLiquidacao}`,
+          );
+          return res.data;
+        },
+      );
+    },
   },
 
   /**

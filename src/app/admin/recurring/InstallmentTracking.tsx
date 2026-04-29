@@ -1,8 +1,11 @@
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarClock, CheckCircle2, Clock } from "lucide-react";
+import { AlertCircle, CalendarClock, CheckCircle2, Clock } from "lucide-react";
+
+import { RetryChargeButton } from "./RetryChargeButton";
 
 interface MonthlyCharge {
+  txid: string | null;
   competencia: string | null;
   status: string;
   paidAt: Date | null;
@@ -98,11 +101,18 @@ export function InstallmentTracking({ data }: InstallmentTrackingProps) {
                                 ? "PAID"
                                 : charge.status === "AGENDADA"
                                   ? "SCHEDULED"
-                                  : "PENDING"
+                                  : charge.status === "EXPIRADA"
+                                    ? "EXPIRED"
+                                    : "PENDING"
                             }
                             date={charge.paidAt}
                             size="sm"
                           />
+                          {charge.status === "EXPIRADA" && charge.txid && (
+                            <div className="mt-1">
+                              <RetryChargeButton txid={charge.txid} />
+                            </div>
+                          )}
                         </div>
                       ))
                     )}
@@ -122,12 +132,13 @@ function StatusBadge({
   date,
   size = "md",
 }: {
-  status: "PAID" | "PENDING" | "SCHEDULED";
+  status: "PAID" | "PENDING" | "SCHEDULED" | "EXPIRED";
   date?: Date | string | null;
   size?: "sm" | "md";
 }) {
   const isPaid = status === "PAID";
   const isScheduled = status === "SCHEDULED";
+  const isExpired = status === "EXPIRED";
 
   if (size === "sm") {
     return (
@@ -137,13 +148,17 @@ function StatusBadge({
             ? `Pago em: ${format(new Date(date), "dd/MM/yyyy HH:mm")}`
             : isScheduled && date
               ? `Agendado para: ${format(new Date(date), "dd/MM/yyyy")}`
-              : "Pendente"
+              : isExpired
+                ? "Cobrança Expirada (Saldo insuficiente ou prazo vencido)"
+                : "Pendente"
         }
       >
         {isPaid ? (
           <CheckCircle2 className="size-5 text-emerald-500" />
         ) : isScheduled ? (
           <CalendarClock className="size-5 text-blue-500" />
+        ) : isExpired ? (
+          <AlertCircle className="size-5 text-rose-500" />
         ) : (
           <Clock className="size-5 text-amber-500" />
         )}
@@ -155,24 +170,34 @@ function StatusBadge({
     <div className="flex flex-col items-center gap-1">
       <div
         className={`
-        inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold
-        ${
-          isPaid
-            ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
-            : isScheduled
-              ? "border border-blue-200 bg-blue-50 text-blue-700"
-              : "border border-amber-200 bg-amber-50 text-amber-700"
-        }
-      `}
+                          inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold
+                          ${
+                            isPaid
+                              ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                              : isScheduled
+                                ? "border border-blue-200 bg-blue-50 text-blue-700"
+                                : isExpired
+                                  ? "border border-rose-200 bg-rose-50 text-rose-700"
+                                  : "border border-amber-200 bg-amber-50 text-amber-700"
+                          }
+                          `}
       >
         {isPaid ? (
           <CheckCircle2 className="size-3.5" />
         ) : isScheduled ? (
           <CalendarClock className="size-3.5" />
+        ) : isExpired ? (
+          <AlertCircle className="size-3.5" />
         ) : (
           <Clock className="size-3.5" />
         )}
-        {isPaid ? "PAGO" : isScheduled ? "AGENDADO" : "PENDENTE"}
+        {isPaid
+          ? "PAGO"
+          : isScheduled
+            ? "AGENDADO"
+            : isExpired
+              ? "EXPIRADO"
+              : "PENDENTE"}
       </div>
       {(isPaid || isScheduled) && date && (
         <span className="text-[10px] text-gray-400">
