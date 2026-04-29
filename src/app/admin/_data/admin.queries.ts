@@ -249,6 +249,7 @@ export async function getInstallmentTracking(params: { eventId: string }) {
       charges: {
         orderBy: { competencia: "asc" },
         select: {
+          txid: true,
           competencia: true,
           status: true,
           paidAt: true,
