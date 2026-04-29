@@ -18,7 +18,16 @@ export default async function RecurringPage() {
   const defaultCompetencia = format(now, "yyyy-MM");
 
   // Sugestão de vencimento (mínimo D+2 da Efí se for gerar hoje)
-  const suggestedDay = Math.max(now.getDate() + 2, 22);
+  // Mas garantindo que permaneça no mês atual para evitar erro DTED
+  const lastDayOfMonth = new Date(
+    now.getFullYear(),
+    now.getMonth() + 1,
+    0,
+  ).getDate();
+  const suggestedDay = Math.min(
+    Math.max(now.getDate() + 2, 22),
+    lastDayOfMonth,
+  );
 
   const [summary, installmentData] = await Promise.all([
     getRecurringSummary({ eventId }),

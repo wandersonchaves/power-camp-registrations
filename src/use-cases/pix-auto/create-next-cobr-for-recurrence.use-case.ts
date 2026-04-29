@@ -89,11 +89,11 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
   if (!rec?.idRec)
     throw new AppError("Recurrence not ready", 409, "REC_NOT_READY");
 
-  // regra local: pelo menos 3 dias de antecedência (UTC) — evita erro de fuso horário/horário limite
+  // regra local: pelo menos 2 dias de antecedência (UTC) — mínimo exigido pela EFI
   const d = diffDaysUTC(dueDate);
-  if (d < 3) {
+  if (d < 2) {
     throw new AppError(
-      "dueDate must be at least 3 days ahead",
+      "dueDate must be at least 2 days ahead",
       400,
       "INVALID_DUE_DATE",
       { dueDate, diffDays: d },
@@ -129,16 +129,27 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
       dueDate,
     });
 
-  // Se já existe no banco, verificamos se a data original ainda é válida (D+3)
+  // Se já existe no banco, verificamos se a data original ainda é válida (D+2)
   // Se não for, usamos a nova 'dueDate' calculada pelo batch
   let finalDueDate = dueDate;
   if (existingForMonth) {
     const originalDate = existingForMonth.dataVencimento
       .toISOString()
       .split("T")[0];
-    if (diffDaysUTC(originalDate) >= 3) {
+    if (diffDaysUTC(originalDate) >= 2) {
       finalDueDate = originalDate;
     }
+  }
+
+  // Trava de segurança: Garante que o vencimento não pule para o próximo mês
+  // se a competência desejada for o mês atual.
+  const targetMonth = competencia.slice(5, 7);
+  const dueMonth = finalDueDate.slice(5, 7);
+  if (dueMonth !== targetMonth) {
+    const year = parseInt(competencia.slice(0, 4));
+    const month = parseInt(targetMonth);
+    const lastDay = new Date(year, month, 0).getDate();
+    finalDueDate = `${year}-${targetMonth.padStart(2, "0")}-${lastDay.toString().padStart(2, "0")}`;
   }
 
   // 3. Define a idempotencyKey
