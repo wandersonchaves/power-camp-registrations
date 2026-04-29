@@ -124,7 +124,7 @@ async function startEfiJourney3WithFallback(params: {
       periodicidade: params.periodicidade,
     },
     valor: { valorRec: params.recurringAmount },
-    politicaRetentativa: "NAO_PERMITE",
+    politicaRetentativa: "PERMITE_3R_7D",
     loc: locrec.id,
     ativacao: { dadosJornada: { txid } },
   });

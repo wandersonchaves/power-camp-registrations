@@ -10,6 +10,7 @@ interface MonthlyCharge {
   status: string;
   paidAt: Date | null;
   valorOriginal: string;
+  politicaRetentativa: string | null;
 }
 
 interface InstallmentItem {
@@ -108,9 +109,18 @@ export function InstallmentTracking({ data }: InstallmentTrackingProps) {
                             date={charge.paidAt}
                             size="sm"
                           />
-                          {charge.status === "EXPIRADA" && charge.txid && (
-                            <div className="mt-1">
-                              <RetryChargeButton txid={charge.txid} />
+                          {charge.status === "EXPIRADA" && (
+                            <div className="mt-1 flex flex-col gap-1">
+                              <div className="text-[9px] font-bold uppercase text-rose-600">
+                                {charge.politicaRetentativa === "NAO_PERMITE"
+                                  ? "Falha (Novo Pix Necessário)"
+                                  : "Falha no Débito"}
+                              </div>
+                              {charge.txid &&
+                                charge.politicaRetentativa !==
+                                  "NAO_PERMITE" && (
+                                  <RetryChargeButton txid={charge.txid} />
+                                )}
                             </div>
                           )}
                         </div>
