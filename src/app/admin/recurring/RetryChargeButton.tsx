@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { addDays, format } from "date-fns";
 import { Loader2, RefreshCcw } from "lucide-react";
-import { toast } from "sonner";
+
+import { useToast } from "@/components/ui/use-toast";
 
 interface RetryChargeButtonProps {
   txid: string;
@@ -11,6 +12,7 @@ interface RetryChargeButtonProps {
 
 export function RetryChargeButton({ txid }: RetryChargeButtonProps) {
   const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
 
   async function handleRetry() {
     if (!confirm("Deseja solicitar uma nova tentativa de débito para amanhã?"))
@@ -29,12 +31,19 @@ export function RetryChargeButton({ txid }: RetryChargeButtonProps) {
 
       if (!response.ok) throw new Error("Falha ao solicitar retentativa");
 
-      toast.success("Retentativa solicitada com sucesso!");
+      toast({
+        title: "Sucesso!",
+        description: "Retentativa solicitada com sucesso!",
+      });
       // Recarrega a página para atualizar o status
       window.location.reload();
     } catch (error) {
       console.error(error);
-      toast.error("Erro ao solicitar retentativa na EFI.");
+      toast({
+        variant: "destructive",
+        title: "Erro",
+        description: "Erro ao solicitar retentativa na EFI.",
+      });
     } finally {
       setLoading(false);
     }
