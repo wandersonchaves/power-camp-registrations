@@ -11,6 +11,13 @@ interface MonthlyCharge {
   paidAt: Date | null;
   valorOriginal: string;
   politicaRetentativa: string | null;
+  payload?: {
+    encerramento?: {
+      rejeicao?: {
+        descricao?: string;
+      };
+    };
+  } | null;
 }
 
 interface InstallmentItem {
@@ -102,21 +109,36 @@ export function InstallmentTracking({ data }: InstallmentTrackingProps) {
                                 ? "PAID"
                                 : charge.status === "AGENDADA"
                                   ? "SCHEDULED"
-                                  : charge.status === "EXPIRADA"
+                                  : charge.status === "EXPIRADA" ||
+                                      charge.status === "REJEITADA"
                                     ? "EXPIRED"
                                     : "PENDING"
                             }
                             date={charge.paidAt}
                             size="sm"
                           />
-                          {charge.status === "EXPIRADA" && (
+                          {(charge.status === "EXPIRADA" ||
+                            charge.status === "REJEITADA") && (
                             <div className="mt-1 flex flex-col gap-1">
                               <div className="text-[9px] font-bold uppercase text-rose-600">
-                                {charge.politicaRetentativa === "NAO_PERMITE"
-                                  ? "Falha (Novo Pix Necessário)"
-                                  : "Falha no Débito"}
+                                {charge.status === "REJEITADA"
+                                  ? "Rejeitado pela EFI"
+                                  : charge.politicaRetentativa === "NAO_PERMITE"
+                                    ? "Falha (Novo Pix Necessário)"
+                                    : "Falha no Débito"}
                               </div>
+                              {/* Motivo detalhado do JSON da EFI */}
+                              {charge.payload?.encerramento?.rejeicao
+                                ?.descricao && (
+                                <div className="max-w-[100px] rounded border border-gray-100 bg-gray-50 p-1 text-[8px] leading-tight text-gray-500">
+                                  {
+                                    charge.payload.encerramento.rejeicao
+                                      .descricao
+                                  }
+                                </div>
+                              )}
                               {charge.txid &&
+                                charge.status === "EXPIRADA" &&
                                 charge.politicaRetentativa !==
                                   "NAO_PERMITE" && (
                                   <RetryChargeButton txid={charge.txid} />
