@@ -51,7 +51,11 @@ export async function syncEfiCobrList(cobrs: unknown[]) {
       let dbStatus = "ACTIVE";
       if (isPaid) dbStatus = "CONCLUIDA";
       else if (isScheduled) dbStatus = "AGENDADA";
-      else if (efiStatus === "REJEITADA" || efiStatus === "CANCELADA")
+      else if (
+        efiStatus === "REJEITADA" ||
+        efiStatus === "CANCELADA" ||
+        efiStatus === "EXPIRADA"
+      )
         dbStatus = efiStatus;
 
       const paidAt =
