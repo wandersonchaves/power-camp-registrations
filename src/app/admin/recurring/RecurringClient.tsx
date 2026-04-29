@@ -75,9 +75,15 @@ export function RunBatchButton({
         data.details
           .filter((d: BatchDetail) => d.status === "failed")
           .forEach((d: BatchDetail) => {
+            let friendlyError = d.error || "Erro desconhecido";
+            if (friendlyError.includes("txid encontra-se em uso")) {
+              friendlyError =
+                "O código desta cobrança já foi usado. Tente rodar novamente para gerar um novo ID.";
+            }
+
             toast({
               title: "Falha na cobrança",
-              description: d.error || "Erro desconhecido",
+              description: friendlyError,
               variant: "destructive",
             });
           });
