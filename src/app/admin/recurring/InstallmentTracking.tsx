@@ -11,13 +11,7 @@ interface MonthlyCharge {
   paidAt: Date | null;
   valorOriginal: string;
   politicaRetentativa: string | null;
-  payload?: {
-    encerramento?: {
-      rejeicao?: {
-        descricao?: string;
-      };
-    };
-  } | null;
+  payload?: any; // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 
 interface InstallmentItem {
