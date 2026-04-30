@@ -680,6 +680,18 @@ export const pixAutoClient = {
     },
 
     /**
+     * txid em uso (heurístico)
+     */
+    isTxidInUse(err: unknown): boolean {
+      return hasViolation(err, (v) => {
+        const r = lower(v.razao);
+        return (
+          r.includes("txid") && (r.includes("uso") || r.includes("utiliz"))
+        );
+      });
+    },
+
+    /**
      * Namespace: COB (cobrança imediata)
      */
     cob: {
