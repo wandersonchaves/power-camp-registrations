@@ -2,6 +2,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AlertCircle, CalendarClock, CheckCircle2, Clock } from "lucide-react";
 
+import { AdhocCobButton } from "./AdhocCobButton";
 import { RetryChargeButton } from "./RetryChargeButton";
 
 interface MonthlyCharge {
@@ -83,9 +84,16 @@ export function InstallmentTracking({ data }: InstallmentTrackingProps) {
                 <td className="px-6 py-4">
                   <div className="flex flex-wrap gap-3">
                     {item.monthlyCharges.length === 0 ? (
-                      <span className="text-xs italic text-gray-400">
-                        Nenhuma parcela gerada ainda
-                      </span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs italic text-gray-400">
+                          Nenhuma parcela gerada ainda
+                        </span>
+                        <AdhocCobButton
+                          recurrenceId={item.id}
+                          competencia={format(new Date(), "yyyy-MM")}
+                          participantName={item.participantName}
+                        />
+                      </div>
                     ) : (
                       item.monthlyCharges.map((charge) => (
                         <div
@@ -137,6 +145,16 @@ export function InstallmentTracking({ data }: InstallmentTrackingProps) {
                                   "NAO_PERMITE" && (
                                   <RetryChargeButton txid={charge.txid} />
                                 )}
+                              {charge.status === "REJEITADA" ||
+                              charge.politicaRetentativa === "NAO_PERMITE" ? (
+                                <div className="mt-1">
+                                  <AdhocCobButton
+                                    recurrenceId={item.id}
+                                    competencia={charge.competencia || ""}
+                                    participantName={item.participantName}
+                                  />
+                                </div>
+                              ) : null}
                             </div>
                           )}
                         </div>
