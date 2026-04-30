@@ -9,6 +9,7 @@ import type {
 import { buildTxid } from "@/infra/efi/txid";
 import { sha256 } from "@/lib/crypto";
 import { AppError } from "@/lib/http-errors";
+import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { asInputJson } from "@/lib/prisma-json";
 
@@ -113,11 +114,16 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
     },
   });
 
-  // Se já existe e está em status terminal positivo, retorna
-  if (
-    existingForMonth &&
-    ["ATIVA", "CONCLUIDA", "PAGO"].includes(existingForMonth.status)
-  ) {
+  // Se já existe e está em status terminal positivo ou já criado na Efí, retorna
+  const positiveStatuses = [
+    "ATIVA",
+    "ACTIVE",
+    "CONCLUIDA",
+    "PAGO",
+    "CRIADA",
+    "AGENDADA",
+  ];
+  if (existingForMonth && positiveStatuses.includes(existingForMonth.status)) {
     return existingForMonth;
   }
 
@@ -216,9 +222,21 @@ export async function createNextCobrForRecurrenceUseCase(input: Input) {
     };
   }
 
-  const resp = await pixAutoClient.cobr.put(txid, putBody);
-
-  const cobrResp = resp as CobrResponse;
+  let cobrResp: CobrResponse;
+  try {
+    const resp = await pixAutoClient.cobr.put(txid, putBody);
+    cobrResp = resp as CobrResponse;
+  } catch (err) {
+    if (pixAutoClient.errors.isTxidInUse(err)) {
+      logger.info(
+        `[CREATE-NEXT-COBR] txid=${txid} em uso na Efí. Sincronizando...`,
+      );
+      const resp = await pixAutoClient.cobr.get(txid);
+      cobrResp = resp as CobrResponse;
+    } else {
+      throw err;
+    }
+  }
 
   return prisma.pixAutoCobr.update({
     where: { id: draft.id },
