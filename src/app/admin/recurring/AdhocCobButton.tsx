@@ -77,7 +77,7 @@ export function AdhocCobButton({
     <>
       <Button
         variant="outline"
-        size="xs"
+        size="sm"
         onClick={handleCreate}
         disabled={loading}
         className="h-7 gap-1 px-2 text-[10px] font-bold text-amber-600 hover:bg-amber-50 hover:text-amber-700"
