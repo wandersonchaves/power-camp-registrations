@@ -63,31 +63,56 @@ export async function syncEfiCobrList(cobrs: unknown[]) {
           ? new Date(lastAttempt?.dataLiquidacao || new Date())
           : null;
 
-      await prisma.pixAutoCobr.upsert({
-        where: { txid },
-        update: {
-          status: dbStatus,
-          paidAt: paidAt,
-          endToEndId: lastAttempt?.endToEndId || null,
-          payload: asInputJson(efiCobr),
-          updatedAt: new Date(),
-        },
-        create: {
-          txid,
-          recurrenceId: recurrence.id,
-          status: dbStatus,
-          valorOriginal: valor?.original || "0.00",
-          dataVencimento: new Date(calendario?.dataDeVencimento || new Date()),
-          infoAdicional: infoAdicional || "",
-          idempotencyKey: `auto-sync-${txid}`,
-          paidAt: paidAt,
-          endToEndId: lastAttempt?.endToEndId || null,
-          payload: asInputJson(efiCobr),
-          competencia: infoAdicional?.match(/\d{4}-\d{2}/)?.[0] || null,
+      const competencia = infoAdicional?.match(/\d{4}-\d{2}/)?.[0] || null;
+
+      // 1. Busca por TXID ou por (recurrenceId, competencia) para evitar duplicidade
+      const existing = await prisma.pixAutoCobr.findFirst({
+        where: {
+          OR: [
+            { txid },
+            {
+              AND: [
+                { recurrenceId: recurrence.id },
+                { competencia: competencia || "" },
+              ],
+            },
+          ],
         },
       });
 
-      stats.updated++;
+      if (existing) {
+        await prisma.pixAutoCobr.update({
+          where: { id: existing.id },
+          data: {
+            txid, // Atualiza o TXID caso tenha mudado na Efí
+            status: dbStatus,
+            paidAt,
+            endToEndId: lastAttempt?.endToEndId || null,
+            payload: asInputJson(efiCobr),
+            updatedAt: new Date(),
+          },
+        });
+        stats.updated++;
+      } else {
+        await prisma.pixAutoCobr.create({
+          data: {
+            txid,
+            recurrenceId: recurrence.id,
+            status: dbStatus,
+            valorOriginal: valor?.original || "0.00",
+            dataVencimento: new Date(
+              calendario?.dataDeVencimento || new Date(),
+            ),
+            infoAdicional: infoAdicional || "",
+            idempotencyKey: `auto-sync-${txid}`,
+            paidAt,
+            endToEndId: lastAttempt?.endToEndId || null,
+            payload: asInputJson(efiCobr),
+            competencia,
+          },
+        });
+        stats.created++;
+      }
     } catch (error) {
       logger.error(`[SYNC-COBR] Erro txid=${(item as EfiCobrItem).txid}`, {
         error,
