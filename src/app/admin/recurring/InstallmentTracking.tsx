@@ -83,83 +83,138 @@ export function InstallmentTracking({ data }: InstallmentTrackingProps) {
 
                 <td className="px-6 py-4">
                   <div className="flex flex-wrap gap-3">
-                    {item.monthlyCharges.length === 0 ? (
-                      <div className="flex items-center gap-3">
+                    {(() => {
+                      const now = new Date();
+                      const currentComp = format(now, "yyyy-MM");
+
+                      // Próxima competência (útil se estiver no final do mês)
+                      const nextMonth = new Date(
+                        now.getFullYear(),
+                        now.getMonth() + 1,
+                        1,
+                      );
+                      const nextComp = format(nextMonth, "yyyy-MM");
+
+                      const existingComps = new Set(
+                        item.monthlyCharges
+                          .map((c) => c.competencia)
+                          .filter(Boolean),
+                      );
+
+                      const renderedCharges = item.monthlyCharges.map(
+                        (charge) => (
+                          <div
+                            key={charge.competencia || "initial"}
+                            className="flex min-w-[80px] flex-col items-center gap-1 rounded-lg border bg-gray-50 p-2"
+                          >
+                            <span className="text-[10px] font-bold uppercase tracking-tight text-gray-500">
+                              {charge.competencia}
+                            </span>
+                            <StatusBadge
+                              status={
+                                charge.status === "CONCLUIDA" ||
+                                charge.status === "PAGO" ||
+                                charge.status === "PAID"
+                                  ? "PAID"
+                                  : charge.status === "AGENDADA"
+                                    ? "SCHEDULED"
+                                    : charge.status === "EXPIRADA" ||
+                                        charge.status === "REJEITADA"
+                                      ? "EXPIRED"
+                                      : "PENDING"
+                              }
+                              date={charge.paidAt}
+                              size="sm"
+                            />
+                            {(charge.status === "EXPIRADA" ||
+                              charge.status === "REJEITADA") && (
+                              <div className="mt-1 flex flex-col gap-1">
+                                <div className="text-[9px] font-bold uppercase text-rose-600">
+                                  {charge.status === "REJEITADA"
+                                    ? "Rejeitado pela EFI"
+                                    : charge.politicaRetentativa ===
+                                        "NAO_PERMITE"
+                                      ? "Falha (Novo Pix Necessário)"
+                                      : "Falha no Débito"}
+                                </div>
+                                {charge.payload?.encerramento?.rejeicao
+                                  ?.descricao && (
+                                  <div className="max-w-[100px] rounded border border-gray-100 bg-gray-50 p-1 text-[8px] leading-tight text-gray-500">
+                                    {
+                                      charge.payload.encerramento.rejeicao
+                                        .descricao
+                                    }
+                                  </div>
+                                )}
+                                {charge.txid &&
+                                  charge.status === "EXPIRADA" &&
+                                  charge.politicaRetentativa !==
+                                    "NAO_PERMITE" && (
+                                    <RetryChargeButton txid={charge.txid} />
+                                  )}
+                                {(charge.status === "REJEITADA" ||
+                                  charge.politicaRetentativa ===
+                                    "NAO_PERMITE") && (
+                                  <div className="mt-1">
+                                    <AdhocCobButton
+                                      recurrenceId={item.id}
+                                      competencia={charge.competencia || ""}
+                                      participantName={item.participantName}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ),
+                      );
+
+                      // Se não houver a competência atual, oferece gerar
+                      if (!existingComps.has(currentComp)) {
+                        renderedCharges.push(
+                          <div
+                            key={`missing-${currentComp}`}
+                            className="flex min-w-[80px] flex-col items-center gap-1 rounded-lg border border-dashed border-amber-200 bg-amber-50/30 p-2"
+                          >
+                            <span className="text-[10px] font-bold uppercase tracking-tight text-amber-600">
+                              {currentComp} (Pendente)
+                            </span>
+                            <AdhocCobButton
+                              recurrenceId={item.id}
+                              competencia={currentComp}
+                              participantName={item.participantName}
+                            />
+                          </div>,
+                        );
+                      }
+
+                      // Se estivermos no final do mês (ex: após dia 20) e não houver a próxima, oferece gerar
+                      if (now.getDate() >= 20 && !existingComps.has(nextComp)) {
+                        renderedCharges.push(
+                          <div
+                            key={`missing-${nextComp}`}
+                            className="flex min-w-[80px] flex-col items-center gap-1 rounded-lg border border-dashed border-amber-200 bg-amber-50/30 p-2"
+                          >
+                            <span className="text-[10px] font-bold uppercase tracking-tight text-amber-600">
+                              {nextComp} (Pendente)
+                            </span>
+                            <AdhocCobButton
+                              recurrenceId={item.id}
+                              competencia={nextComp}
+                              participantName={item.participantName}
+                            />
+                          </div>,
+                        );
+                      }
+
+                      return renderedCharges.length > 0 ? (
+                        renderedCharges
+                      ) : (
                         <span className="text-xs italic text-gray-400">
                           Nenhuma parcela gerada ainda
                         </span>
-                        <AdhocCobButton
-                          recurrenceId={item.id}
-                          competencia={format(new Date(), "yyyy-MM")}
-                          participantName={item.participantName}
-                        />
-                      </div>
-                    ) : (
-                      item.monthlyCharges.map((charge) => (
-                        <div
-                          key={charge.competencia || "initial"}
-                          className="flex min-w-[80px] flex-col items-center gap-1 rounded-lg border bg-gray-50 p-2"
-                        >
-                          <span className="text-[10px] font-bold uppercase tracking-tight text-gray-500">
-                            {charge.competencia}
-                          </span>
-                          <StatusBadge
-                            status={
-                              charge.status === "CONCLUIDA" ||
-                              charge.status === "PAGO" ||
-                              charge.status === "PAID"
-                                ? "PAID"
-                                : charge.status === "AGENDADA"
-                                  ? "SCHEDULED"
-                                  : charge.status === "EXPIRADA" ||
-                                      charge.status === "REJEITADA"
-                                    ? "EXPIRED"
-                                    : "PENDING"
-                            }
-                            date={charge.paidAt}
-                            size="sm"
-                          />
-                          {(charge.status === "EXPIRADA" ||
-                            charge.status === "REJEITADA") && (
-                            <div className="mt-1 flex flex-col gap-1">
-                              <div className="text-[9px] font-bold uppercase text-rose-600">
-                                {charge.status === "REJEITADA"
-                                  ? "Rejeitado pela EFI"
-                                  : charge.politicaRetentativa === "NAO_PERMITE"
-                                    ? "Falha (Novo Pix Necessário)"
-                                    : "Falha no Débito"}
-                              </div>
-                              {/* Motivo detalhado do JSON da EFI */}
-                              {charge.payload?.encerramento?.rejeicao
-                                ?.descricao && (
-                                <div className="max-w-[100px] rounded border border-gray-100 bg-gray-50 p-1 text-[8px] leading-tight text-gray-500">
-                                  {
-                                    charge.payload.encerramento.rejeicao
-                                      .descricao
-                                  }
-                                </div>
-                              )}
-                              {charge.txid &&
-                                charge.status === "EXPIRADA" &&
-                                charge.politicaRetentativa !==
-                                  "NAO_PERMITE" && (
-                                  <RetryChargeButton txid={charge.txid} />
-                                )}
-                              {charge.status === "REJEITADA" ||
-                              charge.politicaRetentativa === "NAO_PERMITE" ? (
-                                <div className="mt-1">
-                                  <AdhocCobButton
-                                    recurrenceId={item.id}
-                                    competencia={charge.competencia || ""}
-                                    participantName={item.participantName}
-                                  />
-                                </div>
-                              ) : null}
-                            </div>
-                          )}
-                        </div>
-                      ))
-                    )}
+                      );
+                    })()}
                   </div>
                 </td>
               </tr>
