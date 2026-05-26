@@ -4,6 +4,7 @@ import type { CobrListResponse, EfiCobLite } from "@/infra/efi/pix-auto.types";
 import { prisma } from "@/lib/prisma";
 import { asInputJson } from "@/lib/prisma-json";
 import { syncEfiCobrList } from "@/use-cases/pix-auto/sync-efi-cobr.use-case";
+import { reconcileAdhocCobs } from "@/use-cases/reconcile/reconcile-adhoc-cobs.use-case";
 import { reconcilePendingCobs } from "@/use-cases/reconcile/reconcile-pending-cobs.use-case";
 
 function daysAgo(days: number) {
@@ -133,6 +134,10 @@ async function main() {
   console.log("==== CHECKING REMAINING PENDING COBS ====");
   const pendingResults = await reconcilePendingCobs({ limit: 500 });
   console.log("[PENDING]", pendingResults);
+
+  console.log("==== CHECKING AD-HOC (PIX AVULSO) COBS ====");
+  const adhocResults = await reconcileAdhocCobs({ limit: 200 });
+  console.log("[ADHOC]", adhocResults);
 
   console.log("==== EFI WEEKLY RECONCILIATION DONE ====");
 }
