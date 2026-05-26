@@ -692,6 +692,17 @@ export const pixAutoClient = {
     },
 
     /**
+     * Cobrança não encontrada (400 - cobranca_nao_encontrada)
+     */
+    isNotFound(err: unknown): boolean {
+      if (!isAxiosError(err)) return false;
+      const data = err.response?.data as Record<string, unknown>;
+      return (
+        err.response?.status === 400 && data?.nome === "cobranca_nao_encontrada"
+      );
+    },
+
+    /**
      * Namespace: COB (cobrança imediata)
      */
     cob: {

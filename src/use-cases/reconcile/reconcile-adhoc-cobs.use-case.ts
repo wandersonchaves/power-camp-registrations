@@ -52,7 +52,23 @@ export async function reconcileAdhocCobs({ limit = 100 }: Params) {
           stats.updated++;
         }
       }
-    } catch {
+    } catch (error) {
+      if (pixAutoClient.errors.isNotFound(error)) {
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+        if (item.createdAt < sevenDaysAgo) {
+          await prisma.pixCobImmediate.update({
+            where: { id: item.id },
+            data: {
+              status: "EXPIRADA",
+              updatedAt: new Date(),
+            },
+          });
+          stats.updated++;
+          continue;
+        }
+      }
       stats.failed++;
     }
   }

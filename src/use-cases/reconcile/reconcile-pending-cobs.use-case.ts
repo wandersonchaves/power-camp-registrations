@@ -103,6 +103,34 @@ export async function reconcilePendingCobs({
             updatedStatusOnly += 1;
           }
         } catch (err) {
+          if (pixAutoClient.errors.isNotFound(err)) {
+            // Se não existe na Efí e já tem mais de 7 dias, cancelamos localmente
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+            const record = await prisma.initialPaymentAttempt.findUnique({
+              where: { enrollmentId: item.enrollmentId },
+              select: { createdAt: true },
+            });
+
+            if (record && record.createdAt < sevenDaysAgo) {
+              await prisma.initialPaymentAttempt.update({
+                where: { enrollmentId: item.enrollmentId },
+                data: {
+                  status: "CANCELLED",
+                  payload: asInputJson({
+                    _reconcile: {
+                      at: new Date().toISOString(),
+                      error: "cobranca_nao_encontrada",
+                      action: "AUTO_CANCEL_OLD_ORPHAN",
+                    },
+                  }),
+                },
+              });
+              updatedStatusOnly += 1;
+            }
+          }
+
           failed += 1;
 
           // opcional: você pode persistir erro no payload pra auditoria
