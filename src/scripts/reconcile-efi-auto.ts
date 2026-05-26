@@ -6,6 +6,7 @@ import { asInputJson } from "@/lib/prisma-json";
 import { syncEfiCobrList } from "@/use-cases/pix-auto/sync-efi-cobr.use-case";
 import { reconcileAdhocCobs } from "@/use-cases/reconcile/reconcile-adhoc-cobs.use-case";
 import { reconcilePendingCobs } from "@/use-cases/reconcile/reconcile-pending-cobs.use-case";
+import { reconcilePendingCobsr } from "@/use-cases/reconcile/reconcile-pending-cobsr.use-case";
 
 function daysAgo(days: number) {
   const d = new Date();
@@ -131,9 +132,13 @@ async function main() {
     console.error("[COBR] error", err);
   }
 
-  console.log("==== CHECKING REMAINING PENDING COBS ====");
+  console.log("==== CHECKING REMAINING PENDING COBS (INITIAL) ====");
   const pendingResults = await reconcilePendingCobs({ limit: 500 });
-  console.log("[PENDING]", pendingResults);
+  console.log("[PENDING-INITIAL]", pendingResults);
+
+  console.log("==== CHECKING REMAINING PENDING COBSR (RECURRING) ====");
+  const pendingRecResults = await reconcilePendingCobsr({ limit: 500 });
+  console.log("[PENDING-RECURRING]", pendingRecResults);
 
   console.log("==== CHECKING AD-HOC (PIX AVULSO) COBS ====");
   const adhocResults = await reconcileAdhocCobs({ limit: 200 });
