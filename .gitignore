@@ -56,3 +56,10 @@ sitemap-*.xml
 # certificados
 certs/
 certs_prd/
+
+*.sql
+!**/migrations/**/*.sql
+*.csv
+*.pdf
+.env*
+!.env.example
