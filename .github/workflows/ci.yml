@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: Lint, typecheck, test and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # No packageManager field in package.json; pnpm-lock.yaml is lockfile v9.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      # No engines field or .nvmrc; Node 24 is the current LTS.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # pnpm 10 skips @prisma/client's postinstall, so the client must be
+      # generated before typecheck. The build script also runs this.
+      - name: Generate Prisma Client
+        run: pnpm exec prisma generate
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Test
+        run: pnpm run test
+
+      # src/env.mjs validates these at build time. Placeholder values only;
+      # the build does not connect to the database or Efí.
+      - name: Build
+        run: pnpm run build
+        env:
+          APP_URL: http://localhost:3000
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+          NEXTAUTH_SECRET: ci-placeholder
+          GOOGLE_CLIENT_ID: ci-placeholder
+          GOOGLE_CLIENT_SECRET: ci-placeholder
+          EFI_ENV: homologation
+          EFI_CLIENT_ID: ci-placeholder
+          EFI_CLIENT_SECRET: ci-placeholder
+          EFI_PIX_KEY: ci-placeholder
