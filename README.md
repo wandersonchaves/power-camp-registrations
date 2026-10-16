@@ -8,7 +8,7 @@ Event registration and payments platform used in production by a church in Teres
 
 - **Enrollment:** public sign-up form with team selection. It creates the enrollment and starts the Pix Automático authorization flow (Jornada 3: first payment plus recurrence consent).
 - **Payments with Efí (Gerencianet) Pix API:** immediate charges (`cob`), recurrences (`rec`) and recurring charges (`cobr`), over mTLS.
-- **Webhooks:** endpoints for `cob`, `cobr` and `rec` events. Each event is persisted with a unique `(kind, externalId)` key before processing, so a resent webhook is not applied twice.
+- **Webhooks:** endpoints for `cob`, `cobr` and `rec` events. Each event is persisted with a unique `(kind, externalId)` key before processing, so a resent webhook is not applied twice. Every webhook route requires a `?hmac=` query parameter equal to `EFI_WEBHOOK_HMAC` (compared in constant time) and rejects the call otherwise.
 - **Reconciliation:** jobs and an admin endpoint compare local state with Efí and fix pending or missed charges (`pnpm reconcile:efi`).
 - **Admin dashboard:** enrollments, teams and a team race scoreboard, installment tracking, retrying a failed charge and creating an ad-hoc charge for a recurrence.
 - **Migration:** moving existing payers from an older recurring flow to the new one, with an audit log.
