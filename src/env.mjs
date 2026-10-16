@@ -47,11 +47,9 @@ export const env = createEnv({
     EFI_CERT_PASSPHRASE: z.string().optional(),
 
     EFI_DEFAULT_COB_EXP_SECONDS: z.coerce.number().int().positive().optional(),
-    EFI_WEBHOOK_HMAC: z.string().optional(),
+    EFI_WEBHOOK_HMAC: z.string().trim().min(1),
     EFI_WEBHOOK_ALLOW_IPS: z.string().optional(),
     EFI_WEBHOOK_SKIP_MTLS: z.coerce.boolean().optional(),
-
-    WEBHOOK_SHARED_SECRET: z.string().optional(),
 
     POWERCAMP_EVENT_ID: z.string().optional(),
     POWERCAMP_OWNER_USER_ID: z.string().optional(),
@@ -84,8 +82,6 @@ export const env = createEnv({
     EFI_WEBHOOK_HMAC: process.env.EFI_WEBHOOK_HMAC,
     EFI_WEBHOOK_ALLOW_IPS: process.env.EFI_WEBHOOK_ALLOW_IPS,
     EFI_WEBHOOK_SKIP_MTLS: process.env.EFI_WEBHOOK_SKIP_MTLS,
-
-    WEBHOOK_SHARED_SECRET: process.env.WEBHOOK_SHARED_SECRET,
 
     POWERCAMP_EVENT_ID: process.env.POWERCAMP_EVENT_ID,
     POWERCAMP_OWNER_USER_ID: process.env.POWERCAMP_OWNER_USER_ID,

@@ -1,6 +1,5 @@
 // src/infra/efi/webhooks/efi-webhook.guard.ts
 import crypto from "crypto";
-import type { NextRequest } from "next/server";
 
 /**
  * Guard para webhooks Efí em modo skip-mTLS.
@@ -14,7 +13,7 @@ import type { NextRequest } from "next/server";
  * - IP allowlist pode ser instável dependendo do proxy/NAT — use como camada extra.
  */
 
-function getClientIp(req: NextRequest): string | null {
+function getClientIp(req: Request): string | null {
   // Cloudflare
   const cf = req.headers.get("cf-connecting-ip");
   if (cf) return cf.trim();
@@ -43,14 +42,13 @@ function normalizeAllowIps(raw: string): string[] {
 }
 
 function safeEqual(a: string, b: string): boolean {
-  // timingSafeEqual exige buffers do mesmo tamanho
-  const ab = Buffer.from(a, "utf8");
-  const bb = Buffer.from(b, "utf8");
-  if (ab.length !== bb.length) return false;
-  return crypto.timingSafeEqual(ab, bb);
+  // Compara digests de tamanho fixo: tempo constante mesmo com tamanhos diferentes
+  const ah = crypto.createHash("sha256").update(a, "utf8").digest();
+  const bh = crypto.createHash("sha256").update(b, "utf8").digest();
+  return crypto.timingSafeEqual(ah, bh);
 }
 
-function readHmacFromRequest(req: NextRequest): string {
+function readHmacFromRequest(req: Request): string {
   // 1) query param ?hmac=...
   const url = new URL(req.url);
   const hmacQuery = url.searchParams.get("hmac");
@@ -71,7 +69,7 @@ function readHmacFromRequest(req: NextRequest): string {
  *
  * Se falhar, lança Error.
  */
-export function assertEfiWebhookAllowed(req: NextRequest) {
+export function assertEfiWebhookAllowed(req: Request) {
   // --- 1) HMAC obrigatório ---
   const expected = String(process.env.EFI_WEBHOOK_HMAC ?? "").trim();
   if (!expected) {
@@ -110,7 +108,7 @@ export function assertEfiWebhookAllowed(req: NextRequest) {
   }
 }
 
-export async function readJsonBody(req: NextRequest): Promise<unknown> {
+export async function readJsonBody(req: Request): Promise<unknown> {
   // Route handlers suportam req.json() diretamente
   return req.json();
 }
