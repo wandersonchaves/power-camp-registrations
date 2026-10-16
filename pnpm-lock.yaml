@@ -31,9 +31,6 @@ importers:
       "@radix-ui/react-toast":
         specifier: ^1.2.2
         version: 1.2.4(@types/react-dom@18.3.5(@types/react@18.3.18))(@types/react@18.3.18)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      "@stripe/stripe-js":
-        specifier: ^5.2.0
-        version: 5.4.0
       "@t3-oss/env-nextjs":
         specifier: ^0.11.1
         version: 0.11.1(typescript@5.7.2)(zod@3.24.1)
@@ -82,9 +79,6 @@ importers:
       sdk-node-apis-efi:
         specifier: ^1.2.4
         version: 1.2.12
-      stripe:
-        specifier: ^17.4.0
-        version: 17.5.0
       tailwind-merge:
         specifier: ^2.5.5
         version: 2.5.5
@@ -2141,13 +2135,6 @@ packages:
       {
         integrity: sha512-V4BG07kuYSUkTCSBHG8G8TNhM+F19jXFWnQtzj+we8DrkpSBCee9Z3Ms8yiGer/dlmhe35/Xdgyo3/0rQKg7YA==,
       }
-
-  "@stripe/stripe-js@5.4.0":
-    resolution:
-      {
-        integrity: sha512-3tfMbSvLGB+OsJ2MsjWjWo+7sp29dwx+3+9kG/TEnZQJt+EwbF/Nomm43cSK+6oXZA9uhspgyrB+BbrPRumx4g==,
-      }
-    engines: { node: ">=12.16" }
 
   "@swc/helpers@0.5.15":
     resolution:
@@ -5886,13 +5873,6 @@ packages:
     peerDependencies:
       react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
-  qs@6.13.1:
-    resolution:
-      {
-        integrity: sha512-EJPeIn0CYrGu+hli1xilKAPXODtJ12T0sP63Ijx2/khC2JtuaN3JyNIpvmnkmaEtha9ocbG4A4cMcr+TvqvwQg==,
-      }
-    engines: { node: ">=0.6" }
-
   querystringify@2.2.0:
     resolution:
       {
@@ -6514,13 +6494,6 @@ packages:
         integrity: sha512-6fPc+R4ihwqP6N/aIv2f1gMH8lOVtWQHoqC4yK6oSDVVocumAsfCqjkXnqiYMhmMwS/mEHLp7Vehlt3ql6lEig==,
       }
     engines: { node: ">=8" }
-
-  stripe@17.5.0:
-    resolution:
-      {
-        integrity: sha512-kcyeAkDFjGsVl17FqnG7q/+xIjt0ZjOo9Dm+q8deAvs2Xe4iAHrhxyoP4etUVFc+/LZJANjIPVR+ZOnt9hr/Ug==,
-      }
-    engines: { node: ">=12.*" }
 
   styled-jsx@5.1.6:
     resolution:
@@ -8370,8 +8343,6 @@ snapshots:
   "@sinonjs/fake-timers@10.3.0":
     dependencies:
       "@sinonjs/commons": 3.0.1
-
-  "@stripe/stripe-js@5.4.0": {}
 
   "@swc/helpers@0.5.15":
     dependencies:
@@ -10941,10 +10912,6 @@ snapshots:
     dependencies:
       react: 19.2.4
 
-  qs@6.13.1:
-    dependencies:
-      side-channel: 1.1.0
-
   querystringify@2.2.0: {}
 
   queue-microtask@1.2.3: {}
@@ -11353,11 +11320,6 @@ snapshots:
       min-indent: 1.0.1
 
   strip-json-comments@3.1.1: {}
-
-  stripe@17.5.0:
-    dependencies:
-      "@types/node": 22.10.2
-      qs: 6.13.1
 
   styled-jsx@5.1.6(@babel/core@7.26.0)(react@19.2.4):
     dependencies:
