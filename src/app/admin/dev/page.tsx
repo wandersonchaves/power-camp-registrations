@@ -131,9 +131,10 @@ export default function HomePage() {
               isso existe a rota fallback.
             </li>
             <li>
-              Em produção, recomendo usar um header{" "}
-              <span className="font-mono">x-webhook-secret</span> e validar no
-              handler.
+              Todas as rotas de webhook exigem{" "}
+              <span className="font-mono">?hmac=</span> igual a{" "}
+              <span className="font-mono">EFI_WEBHOOK_HMAC</span> na URL
+              cadastrada na Efí.
             </li>
             <li>
               O Admin mostra corrida até 50 confirmados e o prêmio para o time

@@ -62,3 +62,4 @@ jobs:
           EFI_CLIENT_ID: ci-placeholder
           EFI_CLIENT_SECRET: ci-placeholder
           EFI_PIX_KEY: ci-placeholder
+          EFI_WEBHOOK_HMAC: ci-placeholder
