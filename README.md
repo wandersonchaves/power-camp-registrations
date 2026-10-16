@@ -1,5 +1,7 @@
 # Power Camp Registrations
 
+[![CI](https://github.com/wandersonchaves/power-camp-registrations/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/wandersonchaves/power-camp-registrations/actions/workflows/ci.yml)
+
 Event registration and payments platform used in production by a church in Teresina, Brazil, for its yearly youth camp. Participants sign up, join a team and pay with **Pix**, either upfront or in monthly installments through **Pix Automático** (Brazil's recurring Pix). Organizers follow enrollments, team progress and installments from an admin dashboard.
 
 ## What it does
