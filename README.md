@@ -1,148 +1,51 @@
-<a href="https://next-power-nexttech.vercel.app/">
-<img src="https://github.com/wandersonchaves/next-power/assets/76774237/44b552ff-43aa-441f-b1d0-de9bdfc2a73f" alt="thubnail">
-</a>
-<p align="center">
-  <a href="#-features"><strong>Features</strong></a> ·
-  <a href="#-deployment"><strong>Deployment</strong></a> ·
-  <a href="#-getting-started"><strong>Getting started</strong></a> ·
-  <a href="#%EF%B8%8F-scripts-overview"><strong>Scripts overview</strong></a> ·
-  <a href="#-contribution"><strong>Contribution</strong></a> ·
-  <a href="#%EF%B8%8F-support"><strong>Support</strong></a>
-</p>
+# Power Camp Registrations
 
-## 🎉 Features
+Event registration and payments platform used in production by a church in Teresina, Brazil, for its yearly youth camp. Participants sign up, join a team and pay with **Pix**, either upfront or in monthly installments through **Pix Automático** (Brazil's recurring Pix). Organizers follow enrollments, team progress and installments from an admin dashboard.
 
-- 🚀 Next.js 15 (App router)
-- ⚛️ React 18
-- 📘 Typescript
-- 🎨 TailwindCSS - Class sorting, merging and linting
-- 🛠️ Shadcn/ui - Customizable UI components
-- 💵 Gerencianet (EFI) - Payment handler
-- 🔒 Next-auth - Easy authentication library for Next.js (GitHub provider)
-- 🛡️ Prisma - ORM for node.js
-- 📋 React-hook-form - Manage your forms easy and efficient
-- 🔍 Zod - Schema validation library
-- 🧪 Jest & React Testing Library - Configured for unit testing
-- 🎭 Playwright - Configured for e2e testing
-- 📈 Absolute Import & Path Alias - Import components using `@/` prefix
-- 💅 Prettier - Code formatter
-- 🧹 Eslint - Code linting tool
-- 🐶 Husky & Lint Staged - Run scripts on your staged files before they are committed
-- 🔹 Icons - From Lucide
-- 🌑 Dark mode - With next-themes
-- 📝 Commitlint - Lint your git commits
-- 🤖 Github actions - Lint your code on PR
-- ⚙️ T3-env - Manage your environment variables
-- 🗺️ Sitemap & robots.txt
-- 💯 Perfect Lighthouse score
-- 🌐 I18n with Paraglide
+## What it does
 
-## 🚀 Deployment
+- **Enrollment:** public sign-up form with team selection. It creates the enrollment and starts the Pix Automático authorization flow (Jornada 3: first payment plus recurrence consent).
+- **Payments with Efí (Gerencianet) Pix API:** immediate charges (`cob`), recurrences (`rec`) and recurring charges (`cobr`), over mTLS.
+- **Webhooks:** endpoints for `cob`, `cobr` and `rec` events. Each event is persisted with a unique `(kind, externalId)` key before processing, so a resent webhook is not applied twice.
+- **Reconciliation:** jobs and an admin endpoint compare local state with Efí and fix pending or missed charges (`pnpm reconcile:efi`).
+- **Admin dashboard:** enrollments, teams and a team race scoreboard, installment tracking, retrying a failed charge and creating an ad-hoc charge for a recurrence.
+- **Migration:** moving existing payers from an older recurring flow to the new one, with an audit log.
 
-Easily deploy your Next.js app with <a href="https://vercel.com/">Vercel</a> by clicking the button below:
+## Architecture
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/wandersonchaves/next-power)
-
-## 🎯 Getting started
-
-### 1. Clone this template in one of three ways
-
-1. Using this repository as template
-
-   ![use-this-template-button](https://github.com/wandersonchaves/next-power/assets/76774237/f25c9a29-41de-4865-aa38-c032b9346169)
-
-2. Using `create-next-app`
-
-   ```bash
-   npx create-next-app -e https://github.com/wandersonchaves/next-power my-project-name
-   ```
-
-3. Using `git clone`
-
-   ```bash
-   git clone https://github.com/wandersonchaves/next-power my-project-name
-   ```
-
-### 2. Install dependencies
-
-```bash
-npm install
+```
+Next.js App Router (pages + route handlers)
+        │
+        ▼
+src/use-cases/      enrollment · pix-auto · webhooks · reconcile · migration · race
+        │
+        ├──► src/infra/efi/   Efí Pix API client (mTLS, OAuth)
+        └──► Prisma ──► PostgreSQL
 ```
 
-### 3. Set up environment variables
+Route handlers stay thin: they validate input, call a use case and map errors to HTTP responses. The business rules live in `src/use-cases`.
 
-Create `.env` file and set env variables from `.env.example` file.
+## Stack
 
-### 4. Prepare husky
+Next.js 15 · React · TypeScript · Prisma · PostgreSQL · NextAuth (Google) · Efí Pix API · Tailwind CSS · shadcn/ui · Jest · Playwright
 
-It is required if you want husky to work
-
-```bash
-npm run prepare
-```
-
-### 5. Run the dev server
-
-You can start the server using this command:
+## Running locally
 
 ```bash
-npm run dev
+pnpm install
+cp .env.example .env    # database, NextAuth, Google and Efí credentials
+pnpm db:migrate
+pnpm dev
 ```
 
-and open http://localhost:3000/ to see this app.
+Efí requires a client certificate (`EFI_CERT_PEM_PATH`, `EFI_CERT_KEY_PEM_PATH`). Use the Efí sandbox (`EFI_ENV`) for development.
 
-## 📁 Project structure
+## Scripts
 
-```bash
-.
-├── .github                         # GitHub folder
-├── .husky                          # Husky configuration
-├── prisma                          # Prisma schema and migrations
-├── public                          # Public assets folder
-└── src
-    ├── __tests__                   # Unit and e2e tests
-    ├── actions                     # Server actions
-    ├── app                         # Next JS App (App Router)
-    ├── components                  # React components
-    ├── hooks                       # Custom hooks
-    ├── lib                         # Functions and utilities
-    ├── styles                      # Styles folder
-    ├── types                       # Type definitions
-    └── env.mjs                     # Env variables config file
-```
-
-## ⚙️ Scripts overview
-
-The following scripts are available in the `package.json`:
-
-- `dev`: Run development server
-- `build`: Build the app
-- `start`: Run production server
-- `preview`: Run `build` and `start` commands together
-- `lint`: Lint the code using Eslint
-- `lint:fix`: Fix linting errors
-- `format:check`: Checks the code for proper formatting
-- `format:write`: Fix formatting issues
-- `typecheck`: Type-check TypeScript without emitting files
-- `test`: Run unit tests
-- `test:watch`: Run unit tests in watch mode
-- `e2e`: Run end-to-end tests
-- `e2e:ui`: Run end-to-end tests with UI
-- `postbuild`: Generate sitemap
-- `prepare`: Install Husky for managing Git hooks
-
-## 🤝 Contribution
-
-To contribute, please follow these steps:
-
-1. Fork the repository.
-2. Create a new branch.
-3. Make your changes, and commit them.
-4. Push your changes to the forked repository.
-5. Create a pull request.
-
-## ❤️ Support
-
-If you liked the project, I will appreciate if you leave a star. 🌟😊
-
-Made by <a href="https://wandersonchaves.netlify.app/">Wanderson Chaves</a>
+| Command | What it does |
+| --- | --- |
+| `pnpm dev` | Development server |
+| `pnpm test` | Unit tests (Jest) |
+| `pnpm e2e` | End-to-end tests (Playwright) |
+| `pnpm reconcile:efi` | Reconciles local charges with Efí |
+| `pnpm typecheck` | TypeScript check |
