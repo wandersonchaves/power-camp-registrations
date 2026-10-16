@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { assertEfiWebhookAllowed } from "@/infra/efi/webhooks/efi-webhook.guard";
 import { toAppError } from "@/lib/http-errors";
 import { confirmInitialPaymentAndAwardUseCase } from "@/use-cases/race/confirm-initial-payment-and-award.use-case";
 import { mapEfiWebhookToPaymentEvent } from "@/use-cases/webhooks/map-efi-webhook";
@@ -8,11 +9,12 @@ export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   try {
-    const secret = req.headers.get("x-webhook-secret");
-    if (
-      process.env.WEBHOOK_SHARED_SECRET &&
-      secret !== process.env.WEBHOOK_SHARED_SECRET
-    ) {
+    try {
+      assertEfiWebhookAllowed(req);
+    } catch (err) {
+      console.error("[EFI webhook cob] unauthorized", {
+        msg: err instanceof Error ? err.message : "guard_failed",
+      });
       return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
     }
 
