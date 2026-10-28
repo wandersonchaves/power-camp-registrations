@@ -149,3 +149,66 @@ export async function promotePaymentAction(formData: FormData) {
   }
   done("ok", "Pagamento confirmado.");
 }
+
+const E2E_ID = /^E[0-9A-Za-z]{10,40}$/;
+
+export async function registerEfiPaymentsAction(formData: FormData) {
+  const session = await requireAdmin();
+
+  const e2eIds = formData
+    .getAll("e2e")
+    .map((v) => v.toString())
+    .filter((v) => E2E_ID.test(v));
+  if (e2eIds.length === 0) done("error", "Selecione ao menos um Pix.");
+
+  let message: string;
+  try {
+    const svc = getTeamInstallments();
+    const picks = await Promise.all(
+      e2eIds.map(async (endToEndId) => {
+        const code = TEAM.safeParse(field(formData, `team_${endToEndId}`));
+        return {
+          endToEndId,
+          teamId: code.success
+            ? await svc.readModel.findTeamIdByCode(code.data)
+            : null,
+        };
+      }),
+    );
+
+    const results = await svc.registerEfiPayments({
+      picks,
+      userEmail: session.user?.email ?? null,
+    });
+    const okCount = results.filter((r) => r.ok).length;
+    const failed = results.filter((r) => !r.ok);
+    message =
+      `${okCount} de ${results.length} Pix registrados e confirmados pela Efí.` +
+      (failed.length > 0
+        ? ` Falhas: ${failed.map((f) => `${f.endToEndId.slice(0, 12)}… (${f.message})`).join("; ")}`
+        : "");
+  } catch (err) {
+    done("error", err instanceof Error ? err.message : "falha ao registrar");
+  }
+  done("ok", message);
+}
+
+export async function confirmManualWithEfiAction(formData: FormData) {
+  const session = await requireAdmin();
+
+  const [paymentId, endToEndId] = (field(formData, "confirm") ?? "").split("|");
+  if (!paymentId || !E2E_ID.test(endToEndId ?? "")) {
+    done("error", "dados inválidos");
+  }
+
+  try {
+    await getTeamInstallments().confirmManualWithEfi({
+      paymentId,
+      endToEndId,
+      userEmail: session.user?.email ?? null,
+    });
+  } catch (err) {
+    done("error", err instanceof Error ? err.message : "falha ao confirmar");
+  }
+  done("ok", "Lançamento manual confirmado com o Pix real da Efí.");
+}

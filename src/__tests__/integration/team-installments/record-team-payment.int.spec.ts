@@ -6,6 +6,10 @@ import { join } from "node:path";
 import { buildTeamInstallments } from "@/infra/team-installments/container";
 import { makeImportTeamPayments } from "@/use-cases/team-installments/import-team-payments.use-case";
 import { parsePaymentsCsv } from "@/use-cases/team-installments/parse-payments-csv";
+import {
+  makeConfirmManualWithEfi,
+  makeRegisterEfiPayments,
+} from "@/use-cases/team-installments/register-efi-payments.use-case";
 
 const RUN = process.env.RUN_DB_TESTS === "1";
 const UNIT = 93330;
@@ -372,5 +376,116 @@ function assertLocalDatabase() {
     expect(second).toMatchObject({ teamId: leao, status: "ALLOCATED" });
     expect(await prisma.teamPaymentAllocation.count()).toBe(2);
     expect(await prisma.teamPaymentAuditLog.count()).toBe(1);
+  });
+});
+
+(RUN ? describe : describe.skip)("busca na Efí (integração)", () => {
+  let prisma: PrismaClient;
+  let svc: ReturnType<typeof buildTeamInstallments>;
+  let leao: string;
+
+  beforeAll(async () => {
+    assertLocalDatabase();
+    prisma = new PrismaClient();
+    svc = buildTeamInstallments(prisma);
+  });
+  afterAll(async () => {
+    await prisma?.$disconnect();
+  });
+
+  it("registra Pix escolhidos como CONFIRMED e confirma o manual sem duplicar parcela", async () => {
+    await prisma.$executeRawUnsafe(
+      `TRUNCATE "TeamPaymentAllocation","TeamPayment","TeamPayerAlias","TeamPaymentAuditLog","TeamInstallment","Team" CASCADE`,
+    );
+    leao = (await prisma.team.create({ data: { code: "LEAO", name: "L" } })).id;
+    await prisma.teamInstallment.createMany({
+      data: Array.from({ length: 9 }, (_, i) => ({
+        teamId: leao,
+        dueMonth: new Date(Date.UTC(2026, 3 + i, 10)),
+        amountCents: UNIT,
+      })),
+    });
+
+    const efi = {
+      EREAL000001: {
+        endToEndId: "EREAL000001",
+        txid: null,
+        amountCents: UNIT * 2,
+        paidAt: new Date("2026-05-02T11:00:00Z"),
+        payerName: "Pagador Real",
+        payerDocument: "12345678901",
+      },
+      EMANUAL0001: {
+        endToEndId: "EMANUAL0001",
+        txid: null,
+        amountCents: UNIT,
+        paidAt: new Date("2026-09-21T10:00:00Z"),
+        payerName: null,
+        payerDocument: null,
+      },
+    } as const;
+    const source = {
+      fetchPage: async () => ({ items: [], totalPages: 1 }),
+      fetchByEndToEndId: async (id: string) =>
+        efi[id as keyof typeof efi] ?? null,
+    };
+    const register = makeRegisterEfiPayments({
+      source,
+      cobPayers: { findPayer: async () => null },
+      recordTeamPayment: svc.recordTeamPayment,
+    });
+
+    // 1) registra o Pix de 2 parcelas escolhido pelo admin
+    const res = await register({
+      picks: [{ endToEndId: "EREAL000001", teamId: leao }],
+      userEmail: "admin@x.com",
+    });
+    expect(res[0].ok).toBe(true);
+    const p = await prisma.teamPayment.findUniqueOrThrow({
+      where: { endToEndId: "EREAL000001" },
+    });
+    expect(p).toMatchObject({
+      confirmation: "CONFIRMED",
+      source: "RECONCILIATION",
+      teamId: leao,
+      status: "ALLOCATED",
+    });
+    expect(await prisma.teamPaymentAllocation.count()).toBe(2);
+    expect(await prisma.teamPaymentAuditLog.count()).toBe(1);
+
+    // registrar de novo não duplica
+    await register({
+      picks: [{ endToEndId: "EREAL000001", teamId: leao }],
+      userEmail: "admin@x.com",
+    });
+    expect(await prisma.teamPayment.count()).toBe(1);
+
+    // 2) lançamento manual é confirmado com o Pix real da Efí
+    const manual = await svc.recordTeamPayment({
+      amountCents: UNIT,
+      paidAt: new Date("2026-09-20T12:00:00Z"),
+      source: "MANUAL",
+      confirmation: "UNCONFIRMED",
+      teamId: leao,
+    });
+    if (manual.outcome === "SKIPPED") throw new Error("unexpected");
+    const confirm = makeConfirmManualWithEfi({
+      source,
+      readModel: svc.readModel,
+      promotePayment: svc.promotePayment,
+    });
+    await confirm({
+      paymentId: manual.paymentId,
+      endToEndId: "EMANUAL0001",
+      userEmail: "admin@x.com",
+    });
+
+    expect(await prisma.teamPayment.count()).toBe(2);
+    expect(await prisma.teamPaymentAllocation.count()).toBe(3);
+    expect(
+      await prisma.teamPayment.count({
+        where: { confirmation: "UNCONFIRMED" },
+      }),
+    ).toBe(0);
   });
 });

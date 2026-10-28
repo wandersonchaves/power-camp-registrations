@@ -6,6 +6,8 @@ import { getEfiHttpClient } from "./efi.http";
 import { mapEfiPixItem } from "./pix-received.mapper";
 
 import type {
+  CobPayerLookup,
+  ReceivedPixItem,
   ReceivedPixPage,
   ReceivedPixSource,
 } from "@/use-cases/team-installments/ports";
@@ -60,11 +62,29 @@ export async function withRetry<T>(
   }
 }
 
+const E2E_ID = /^E[0-9A-Za-z]{10,40}$/;
+
 export class EfiPixReceivedClient implements ReceivedPixSource {
   constructor(
     private readonly http: () => AxiosInstance = getEfiHttpClient,
     private readonly retry: Partial<RetryOptions> = {},
   ) {}
+
+  async fetchByEndToEndId(endToEndId: string): Promise<ReceivedPixItem | null> {
+    // Valida antes de montar a URL (nada de caminhos arbitrários).
+    if (!E2E_ID.test(endToEndId)) return null;
+
+    try {
+      const { data } = await withRetry(
+        () => this.http().get(`/v2/pix/${endToEndId}`),
+        this.retry,
+      );
+      return mapEfiPixItem(data);
+    } catch (err) {
+      if (statusOf(err) === 404) return null;
+      throw err;
+    }
+  }
 
   async fetchPage(range: {
     from: Date;
@@ -95,5 +115,28 @@ export class EfiPixReceivedClient implements ReceivedPixSource {
       totalPages:
         Number.isFinite(totalPages) && totalPages > 0 ? totalPages : 1,
     };
+  }
+}
+
+/** Devedor da cobrança (GET /v2/cob/{txid}, somente leitura) como "responsável" pelo Pix. */
+export class EfiCobPayerLookup implements CobPayerLookup {
+  constructor(
+    private readonly getCob: (txid: string) => Promise<{
+      devedor?: { nome?: string; cpf?: string; cnpj?: string };
+    }>,
+  ) {}
+
+  async findPayer(txid: string) {
+    try {
+      const cob = await this.getCob(txid);
+      const devedor = cob.devedor;
+      if (!devedor) return null;
+      return {
+        name: devedor.nome?.trim() || null,
+        document: devedor.cpf || devedor.cnpj || null,
+      };
+    } catch {
+      return null; // enriquecimento é opcional: nunca derruba a busca
+    }
   }
 }

@@ -33,7 +33,7 @@ describe("reconcileTeamPayments", () => {
     const now = new Date("2026-10-27T00:00:00Z");
 
     const report = await makeReconcileTeamPayments({
-      source: { fetchPage },
+      source: { fetchPage, fetchByEndToEndId: jest.fn() },
       recordTeamPayment: record,
       installmentAmountCents: UNIT,
       now: () => now,

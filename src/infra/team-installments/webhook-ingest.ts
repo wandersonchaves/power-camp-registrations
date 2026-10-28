@@ -1,8 +1,17 @@
 // src/infra/team-installments/webhook-ingest.ts
 import { getTeamInstallmentConfig } from "./config";
-import { getTeamInstallments } from "./container";
 
 import { mapEfiPixItem } from "@/infra/efi/pix-received.mapper";
+
+type RecordFn = ReturnType<
+  typeof import("./container").getTeamInstallments
+>["recordTeamPayment"];
+
+// Carregamento tardio: o container puxa o cliente Efí (e a validação de env),
+// que só é necessário quando a flag está ligada.
+async function loadRecordTeamPayment() {
+  return (await import("./container")).getTeamInstallments().recordTeamPayment;
+}
 
 /**
  * Registra no ledger os Pix de um webhook da Efí.
@@ -11,11 +20,11 @@ import { mapEfiPixItem } from "@/infra/efi/pix-received.mapper";
  */
 export async function recordTeamPaymentsFromWebhook(
   items: unknown[],
-  record = () => getTeamInstallments().recordTeamPayment,
+  record: () => Promise<RecordFn> | RecordFn = loadRecordTeamPayment,
 ) {
   try {
     if (!getTeamInstallmentConfig().enabled) return;
-    const recordTeamPayment = record();
+    const recordTeamPayment = await record();
 
     for (const item of items) {
       try {
