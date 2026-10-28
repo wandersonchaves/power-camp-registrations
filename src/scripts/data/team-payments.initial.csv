@@ -1,0 +1,11 @@
+# Carga inicial (verificada na API da Efí em 27/10/2026). Datas em UTC, derivadas do e2eId.
+# Não constam: Pix de R$ 183,00 (30/06) e R$ 366,00 (02/08) — múltiplos de 18,30 mas não de 933,30,
+# aguardam decisão dos líderes sobre pagamento parcial. O pagador do lançamento manual de 20/09
+# (comprovante) deve ser informado na hora da importação local, não versionado.
+e2eid,data,valor,equipe,pagador,origem,confirmacao,motivo
+E18236120202603201822s14e73cdb49,2026-03-20T18:22:00Z,933.30,LEAO,,IMPORT,CONFIRMED,txid f53cd8cf… conferido na API da Efí
+E18236120202603242340s19583a9abb,2026-03-24T23:40:00Z,933.30,AGUIA,,IMPORT,CONFIRMED,txid 5ca8a44d… conferido na API da Efí
+E18236120202604302143s07c30c7141,2026-04-30T21:43:00Z,933.30,LEAO,,IMPORT,CONFIRMED,txid dc179c9a… conferido na API da Efí
+E18236120202605021143s191a357ee9,2026-05-02T11:43:00Z,933.30,AGUIA,,IMPORT,CONFIRMED,txid 449df61a… conferido na API da Efí
+E18236120202607111113s1988e9a478,2026-07-11T11:13:00Z,933.30,AGUIA,CODAR.PRO LTDA,IMPORT,CONFIRMED,INFERÊNCIA: pagador CODAR.PRO LTDA igual ao de parcelas anteriores (sem txid)
+,2026-09-20T12:00:00Z,933.30,LEAO,,MANUAL,UNCONFIRMED,só comprovante; não consta na API da Efí
