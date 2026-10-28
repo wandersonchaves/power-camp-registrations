@@ -1,4 +1,5 @@
 // src/use-cases/team-installments/record-team-payment.use-case.ts
+import { attributeTeam } from "./attribution";
 import type {
   PayerAliasLookup,
   PaymentPatch,
@@ -10,7 +11,6 @@ import type {
 import { reallocateTeam } from "./reallocate-team";
 
 import { isExactMultiple } from "@/domain/team-installments/money";
-import { normalizePayerName } from "@/domain/team-installments/normalize-name";
 
 export interface RecordTeamPaymentInput {
   /** Ausente apenas em lançamento MANUAL: vira a chave sintética MANUAL-<id>. */
@@ -64,7 +64,7 @@ export function makeRecordTeamPayment(deps: RecordTeamPaymentDeps) {
     }
 
     const endToEndId = input.endToEndId?.trim() || `MANUAL-${deps.newId()}`;
-    const attribution = await attribute(input, deps);
+    const attribution = await attributeTeam(input, deps);
 
     return deps.uow.run(async (ledger) => {
       if (attribution.teamId) await ledger.lockTeam(attribution.teamId);
@@ -101,7 +101,8 @@ export function makeRecordTeamPayment(deps: RecordTeamPaymentDeps) {
             deps.installmentAmountCents,
           );
         }
-        if (!AUTOMATIC_SOURCES.includes(input.source)) {
+        // Fontes automáticas só auditam quando há um admin por trás da ação.
+        if (!AUTOMATIC_SOURCES.includes(input.source) || input.userEmail) {
           await ledger.appendAudit({
             paymentId: payment.id,
             teamId: attribution.teamId,
@@ -150,32 +151,4 @@ export function makeRecordTeamPayment(deps: RecordTeamPaymentDeps) {
       return { outcome: "EXISTING", paymentId: payment.id };
     });
   };
-}
-
-/** Ordem: (a) txid do sistema, (b) humano, (c) alias, (d) sem equipe. */
-async function attribute(
-  input: RecordTeamPaymentInput,
-  deps: Pick<RecordTeamPaymentDeps, "txidTeams" | "aliases">,
-): Promise<{ teamId: string | null; reason: string }> {
-  if (input.txid) {
-    const teamId = await deps.txidTeams.findTeamId(input.txid);
-    if (teamId) return { teamId, reason: "txid ligado a cobrança do sistema" };
-  }
-
-  if (input.teamId) {
-    return {
-      teamId: input.teamId,
-      reason: input.attributionReason?.trim() || "atribuição manual",
-    };
-  }
-
-  if (input.payerName) {
-    const normalized = normalizePayerName(input.payerName);
-    const teamId = normalized
-      ? await deps.aliases.findTeamId(normalized)
-      : null;
-    if (teamId) return { teamId, reason: "alias de pagador configurado" };
-  }
-
-  return { teamId: null, reason: "equipe não identificada" };
 }

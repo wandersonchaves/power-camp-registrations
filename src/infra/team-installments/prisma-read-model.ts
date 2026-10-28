@@ -1,10 +1,30 @@
 // src/infra/team-installments/prisma-read-model.ts
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient, TeamPayment } from "@prisma/client";
 
 import type {
   PaymentListRow,
   TeamInstallmentReadModel,
 } from "@/use-cases/team-installments/ports";
+
+type PaymentWithTeam = TeamPayment & { team: { code: string } | null };
+
+function toListRow(r: PaymentWithTeam): PaymentListRow {
+  return {
+    id: r.id,
+    endToEndId: r.endToEndId,
+    txid: r.txid,
+    amountCents: r.amountCents,
+    paidAt: r.paidAt,
+    payerName: r.payerName,
+    payerDocument: r.payerDocument,
+    teamCode: r.team?.code ?? null,
+    source: r.source,
+    confirmation: r.confirmation,
+    status: r.status,
+    attributionReason: r.attributionReason,
+    note: r.note,
+  };
+}
 
 export class PrismaTeamInstallmentReadModel
   implements TeamInstallmentReadModel
@@ -49,23 +69,27 @@ export class PrismaTeamInstallmentReadModel
       include: { team: { select: { code: true } } },
     });
 
-    return rows.map(
-      (r): PaymentListRow => ({
-        id: r.id,
-        endToEndId: r.endToEndId,
-        txid: r.txid,
-        amountCents: r.amountCents,
-        paidAt: r.paidAt,
-        payerName: r.payerName,
-        payerDocument: r.payerDocument,
-        teamCode: r.team?.code ?? null,
-        source: r.source,
-        confirmation: r.confirmation,
-        status: r.status,
-        attributionReason: r.attributionReason,
-        note: r.note,
-      }),
-    );
+    return rows.map(toListRow);
+  }
+
+  async getPayment(id: string) {
+    const row = await this.client.teamPayment.findUnique({
+      where: { id },
+      include: { team: { select: { code: true } } },
+    });
+    return row ? toListRow(row) : null;
+  }
+
+  async findPaymentsByEndToEndIds(endToEndIds: string[]) {
+    const rows = await this.client.teamPayment.findMany({
+      where: { endToEndId: { in: endToEndIds } },
+      include: { team: { select: { code: true } } },
+    });
+    return new Map(rows.map((r) => [r.endToEndId, toListRow(r)]));
+  }
+
+  listTeams() {
+    return this.client.team.findMany({ select: { id: true, code: true } });
   }
 
   async findTeamIdByCode(code: string) {

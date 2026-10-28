@@ -5,6 +5,7 @@ import {
   createManualPaymentAction,
   promotePaymentAction,
 } from "./actions";
+import { EfiSearchSection } from "./EfiSearchSection";
 
 import type { CellState } from "@/domain/team-installments/installment-matrix";
 import { formatCents } from "@/domain/team-installments/money";
@@ -12,6 +13,9 @@ import { getTeamInstallmentConfig } from "@/infra/team-installments/config";
 import { getTeamInstallments } from "@/infra/team-installments/container";
 import { requireAdmin } from "@/lib/auth/guards";
 import type { PaymentView } from "@/use-cases/team-installments/get-installment-overview.use-case";
+import type { EfiSearchResult } from "@/use-cases/team-installments/search-efi-payments.use-case";
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -164,13 +168,35 @@ function PaymentsTable(props: {
 }
 
 export default async function TeamInstallmentsPage(props: {
-  searchParams: Promise<{ ok?: string; error?: string }>;
+  searchParams: Promise<{
+    ok?: string;
+    error?: string;
+    efiFrom?: string;
+    efiTo?: string;
+  }>;
 }) {
   await requireAdmin();
-  const { ok, error } = await props.searchParams;
+  const { ok, error, efiFrom, efiTo } = await props.searchParams;
   const { enabled } = getTeamInstallmentConfig();
 
-  const overview = await getTeamInstallments().getInstallmentOverview();
+  const svc = getTeamInstallments();
+  const overview = await svc.getInstallmentOverview();
+
+  const today = new Date().toISOString().slice(0, 10);
+  const from = DATE_RE.test(efiFrom ?? "") ? (efiFrom as string) : "2026-03-01";
+  const to = DATE_RE.test(efiTo ?? "") ? (efiTo as string) : today;
+  let efiResult: EfiSearchResult | null = null;
+  let efiError: string | null = null;
+  if (efiFrom && efiTo) {
+    try {
+      efiResult = await svc.searchEfiPayments({
+        from: new Date(`${from}T00:00:00.000Z`),
+        to: new Date(Math.min(Date.now(), Date.parse(`${to}T23:59:59.999Z`))),
+      });
+    } catch (err) {
+      efiError = err instanceof Error ? err.message : "erro desconhecido";
+    }
+  }
   const months = overview.matrices[0]?.cells.map((c) => c.dueMonth) ?? [];
 
   return (
@@ -203,6 +229,13 @@ export default async function TeamInstallmentsPage(props: {
             <b>Equipe × mês:</b> mostra cada parcela como PAGO, ABERTO (venceu e
             não foi paga), A VENCER ou PAGO NÃO CONFIRMADO (lançado à mão, ainda
             sem o Pix real na Efí).
+          </li>
+          <li>
+            <b>Buscar na Efí:</b> escolha o período e clique em Buscar. A tela
+            lista os Pix com valor de parcela, com o responsável (devedor da
+            cobrança ou pagador informado pela Efí). Marque os que faltam e
+            clique em Registrar: eles entram já confirmados, e a coluna
+            &quot;Parcelas pagas&quot; mostra quantas são confirmadas na Efí.
           </li>
           <li>
             <b>Não atribuídos:</b> Pix de R$ 933,30 (ou múltiplos) que não
@@ -254,6 +287,7 @@ export default async function TeamInstallmentsPage(props: {
                     {dueLabel(m)}
                   </th>
                 ))}
+                <th className="p-2">Parcelas pagas</th>
                 <th className="p-2">Pago</th>
                 <th className="p-2">Em aberto</th>
                 <th className="p-2">A vencer</th>
@@ -272,6 +306,14 @@ export default async function TeamInstallmentsPage(props: {
                       </span>
                     </td>
                   ))}
+                  <td className="p-2 font-semibold">
+                    {m.counts.paid}/{m.counts.total}
+                    <div className="font-normal text-gray-500">
+                      {m.counts.confirmed} confirmada(s) na Efí
+                      {m.counts.unconfirmed > 0 &&
+                        ` · ${m.counts.unconfirmed} manual(is)`}
+                    </div>
+                  </td>
                   <td className="p-2 font-medium text-green-800">
                     {formatCents(m.totals.paidCents)}
                     {m.totals.unconfirmedCents > 0 && (
@@ -292,6 +334,14 @@ export default async function TeamInstallmentsPage(props: {
           </table>
         </div>
       </section>
+
+      <EfiSearchSection
+        from={from}
+        to={to}
+        searched={Boolean(efiFrom && efiTo)}
+        result={efiResult}
+        error={efiError}
+      />
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Fila: não atribuídos</h2>

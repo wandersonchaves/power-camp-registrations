@@ -117,6 +117,15 @@ export interface ReceivedPixSource {
     to: Date;
     page: number;
   }): Promise<ReceivedPixPage>;
+  /** Consulta autoritativa de um Pix (GET /v2/pix/{e2eid}); null se não existir. */
+  fetchByEndToEndId(endToEndId: string): Promise<ReceivedPixItem | null>;
+}
+
+/** Quem pagou uma cobrança emitida pelo sistema (devedor da cob, via txid). */
+export interface CobPayerLookup {
+  findPayer(
+    txid: string,
+  ): Promise<{ name: string | null; document: string | null } | null>;
 }
 
 export interface PaymentListRow {
@@ -143,4 +152,10 @@ export interface TeamInstallmentReadModel {
     confirmation?: TeamPaymentConfirmation;
   }): Promise<PaymentListRow[]>;
   findTeamIdByCode(code: string): Promise<string | null>;
+  listTeams(): Promise<{ id: string; code: string }[]>;
+  getPayment(id: string): Promise<PaymentListRow | null>;
+  /** Situação no ledger dos Pix já registrados, por e2eId. */
+  findPaymentsByEndToEndIds(
+    endToEndIds: string[],
+  ): Promise<Map<string, PaymentListRow>>;
 }
