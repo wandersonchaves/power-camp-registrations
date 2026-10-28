@@ -1,7 +1,11 @@
 /** @jest-environment node */
 import { PrismaClient } from "@prisma/client";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { buildTeamInstallments } from "@/infra/team-installments/container";
+import { makeImportTeamPayments } from "@/use-cases/team-installments/import-team-payments.use-case";
+import { parsePaymentsCsv } from "@/use-cases/team-installments/parse-payments-csv";
 
 const RUN = process.env.RUN_DB_TESTS === "1";
 const UNIT = 93330;
@@ -222,5 +226,66 @@ function assertLocalDatabase() {
       expect(await prisma.teamPayment.count()).toBe(1);
       expect(await prisma.teamPaymentAllocation.count()).toBe(1);
     });
+  });
+});
+
+(RUN ? describe : describe.skip)("importação CSV (integração)", () => {
+  let prisma: PrismaClient;
+
+  beforeAll(async () => {
+    assertLocalDatabase();
+    prisma = new PrismaClient();
+  });
+  afterAll(async () => {
+    await prisma?.$disconnect();
+  });
+
+  it("carga inicial: dry-run não grava; apply é idempotente e não duplica o MANUAL", async () => {
+    await prisma.$executeRawUnsafe(
+      `TRUNCATE "TeamPaymentAllocation","TeamPayment","TeamPayerAlias","TeamPaymentAuditLog","TeamInstallment","Team" CASCADE`,
+    );
+    const ids: Record<"AGUIA" | "LEAO", string> = { AGUIA: "", LEAO: "" };
+    for (const code of ["AGUIA", "LEAO"] as const) {
+      const t = await prisma.team.create({ data: { code, name: code } });
+      ids[code] = t.id;
+      await prisma.teamInstallment.createMany({
+        data: Array.from({ length: 9 }, (_, i) => ({
+          teamId: t.id,
+          dueMonth: new Date(Date.UTC(2026, 3 + i, 10)),
+          amountCents: UNIT,
+        })),
+      });
+    }
+    const svc = buildTeamInstallments(prisma);
+    const { rows } = parsePaymentsCsv(
+      readFileSync(
+        join(process.cwd(), "src/scripts/data/team-payments.initial.csv"),
+        "utf8",
+      ),
+    );
+    const run = makeImportTeamPayments({
+      recordTeamPayment: svc.recordTeamPayment,
+      paymentExists: async (endToEndId) =>
+        (await prisma.teamPayment.count({ where: { endToEndId } })) > 0,
+      teamIdByCode: ids,
+      installmentAmountCents: UNIT,
+    });
+
+    const dry = await run({ rows, apply: false });
+    expect(dry.every((r) => r.action === "CREATE")).toBe(true);
+    expect(await prisma.teamPayment.count()).toBe(0);
+
+    await run({ rows, apply: true });
+    const second = await run({ rows, apply: true });
+    expect(second.every((r) => r.action === "EXISTS")).toBe(true);
+
+    expect(await prisma.teamPayment.count()).toBe(6);
+    // LEAO: 2 confirmados + 1 manual; AGUIA: 3 => 3 parcelas cada
+    expect(await prisma.teamPaymentAllocation.count()).toBe(6);
+    expect(
+      await prisma.teamPayment.count({
+        where: { confirmation: "UNCONFIRMED" },
+      }),
+    ).toBe(1);
   });
 });
