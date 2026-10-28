@@ -18,17 +18,40 @@ async function main() {
       },
     }));
 
-  await prisma.team.upsert({
+  const aguia = await prisma.team.upsert({
     where: { code: "AGUIA" },
     update: { name: "Equipe Águia" },
     create: { code: "AGUIA", name: "Equipe Águia" },
   });
 
-  await prisma.team.upsert({
+  const leao = await prisma.team.upsert({
     where: { code: "LEAO" },
     update: { name: "Equipe Leão" },
     create: { code: "LEAO", name: "Equipe Leão" },
   });
+
+  // ✅ Parcelas das equipes: 9 mensais (abr–dez/2026), vencimento dia 10.
+  // Idempotente (unique teamId+dueMonth) e sem sobrescrever valores existentes.
+  const amountCents = Number(
+    process.env.TEAM_INSTALLMENT_AMOUNT_CENTS ?? 93330,
+  );
+  if (!Number.isInteger(amountCents) || amountCents <= 0) {
+    throw new Error("TEAM_INSTALLMENT_AMOUNT_CENTS inválido");
+  }
+  const dueMonths = Array.from(
+    { length: 9 },
+    (_, i) => new Date(Date.UTC(2026, 3 + i, 10)),
+  );
+  for (const team of [aguia, leao]) {
+    await prisma.teamInstallment.createMany({
+      data: dueMonths.map((dueMonth) => ({
+        teamId: team.id,
+        dueMonth,
+        amountCents,
+      })),
+      skipDuplicates: true,
+    });
+  }
 
   // ✅ Promote Admin by env (recomendado)
   const adminEmail = String(process.env.ADMIN_EMAIL ?? "")

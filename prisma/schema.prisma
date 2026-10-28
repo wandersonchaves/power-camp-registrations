@@ -229,14 +229,17 @@ model PixCobImmediate {
 }
 
 model Team {
-  id             String          @id @default(cuid())
-  code           TeamCode        @unique
+  id             String            @id @default(cuid())
+  code           TeamCode          @unique
   name           String
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
   enrollments    Enrollment[]
   teamAwards     TeamAward[]
   teamMilestones TeamMilestone[]
+  installments   TeamInstallment[]
+  payments       TeamPayment[]
+  payerAliases   TeamPayerAlias[]
 }
 
 model Enrollment {
@@ -376,4 +379,107 @@ enum MigrationStatus {
   CONSENT_REJECTED
   FAILED
   CANCELED
+}
+
+// ---------------------------------------------------------------------------
+// Parcelas das equipes (ledger de pagamentos + alocação FIFO derivada)
+// ---------------------------------------------------------------------------
+
+enum TeamPaymentSource {
+  WEBHOOK
+  RECONCILIATION
+  IMPORT
+  MANUAL
+}
+
+enum TeamPaymentConfirmation {
+  CONFIRMED
+  UNCONFIRMED
+}
+
+enum TeamPaymentStatus {
+  ALLOCATED
+  UNATTRIBUTED
+  IGNORED
+  PARTIAL
+}
+
+model TeamInstallment {
+  id          String   @id @default(cuid())
+  teamId      String
+  dueMonth    DateTime @db.Date
+  amountCents Int
+  createdAt   DateTime @default(now())
+
+  team        Team                    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  allocations TeamPaymentAllocation[]
+
+  @@unique([teamId, dueMonth])
+}
+
+model TeamPayment {
+  id                String                  @id @default(cuid())
+  endToEndId        String                  @unique
+  txid              String?
+  amountCents       Int
+  paidAt            DateTime
+  payerName         String?
+  payerDocument     String?
+  teamId            String?
+  source            TeamPaymentSource
+  confirmation      TeamPaymentConfirmation @default(CONFIRMED)
+  status            TeamPaymentStatus
+  attributionReason String?
+  createdByUserId   String?
+  note              String?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  team        Team?                   @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  allocations TeamPaymentAllocation[]
+
+  @@index([teamId, paidAt])
+  @@index([status])
+  @@index([txid])
+}
+
+model TeamPaymentAllocation {
+  id            String   @id @default(cuid())
+  paymentId     String
+  installmentId String
+  amountCents   Int
+  createdAt     DateTime @default(now())
+
+  payment     TeamPayment     @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  installment TeamInstallment @relation(fields: [installmentId], references: [id], onDelete: Cascade)
+
+  // uma parcela só é quitada uma vez
+  @@unique([installmentId])
+  @@index([paymentId])
+}
+
+model TeamPayerAlias {
+  id             String   @id @default(cuid())
+  teamId         String
+  normalizedName String   @unique
+  createdBy      String?
+  createdAt      DateTime @default(now())
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId])
+}
+
+model TeamPaymentAuditLog {
+  id        String   @id @default(cuid())
+  paymentId String?
+  teamId    String?
+  action    String
+  before    Json?
+  after     Json?
+  userEmail String?
+  createdAt DateTime @default(now())
+
+  @@index([paymentId])
+  @@index([createdAt])
 }
