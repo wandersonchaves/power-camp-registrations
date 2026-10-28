@@ -44,10 +44,26 @@ Efí requires a client certificate (`EFI_CERT_PEM_PATH`, `EFI_CERT_KEY_PEM_PATH`
 
 ## Scripts
 
-| Command | What it does |
-| --- | --- |
-| `pnpm dev` | Development server |
-| `pnpm test` | Unit tests (Jest) |
-| `pnpm e2e` | End-to-end tests (Playwright) |
+| Command              | What it does                      |
+| -------------------- | --------------------------------- |
+| `pnpm dev`           | Development server                |
+| `pnpm test`          | Unit tests (Jest)                 |
+| `pnpm e2e`           | End-to-end tests (Playwright)     |
 | `pnpm reconcile:efi` | Reconciles local charges with Efí |
-| `pnpm typecheck` | TypeScript check |
+| `pnpm typecheck`     | TypeScript check                  |
+
+## Team installments reconciliation
+
+Team payments (9 monthly installments per team) are recorded in a ledger and allocated FIFO.
+Sources: the Efí Pix webhook, a daily reconciliation job and manual entries.
+Enable with `TEAM_INSTALLMENTS_ENABLED=true` (after `prisma migrate deploy`).
+
+Daily job (Railway cron service, schedule e.g. `0 9 * * *`, command):
+
+```bash
+curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" \
+  "$APP_URL/api/cron/team-payments-reconcile"
+```
+
+Add `?days=31` for a backfill (default 7, max 31). The job only calls `GET /v2/pix`
+(scope `pix.read`) and never endpoints that move money.

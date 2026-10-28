@@ -88,3 +88,26 @@ export interface TxidTeamResolver {
 export interface PayerAliasLookup {
   findTeamId(normalizedName: string): Promise<string | null>;
 }
+
+export interface ReceivedPixItem {
+  endToEndId: string;
+  txid: string | null;
+  amountCents: number;
+  paidAt: Date;
+  payerName: string | null;
+  payerDocument: string | null;
+}
+
+export interface ReceivedPixPage {
+  items: ReceivedPixItem[];
+  totalPages: number;
+}
+
+/** Fonte de Pix recebidos (Efí GET /v2/pix) — somente leitura. */
+export interface ReceivedPixSource {
+  fetchPage(range: {
+    from: Date;
+    to: Date;
+    page: number;
+  }): Promise<ReceivedPixPage>;
+}
