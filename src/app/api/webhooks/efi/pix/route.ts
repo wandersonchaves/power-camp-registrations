@@ -6,6 +6,7 @@ import {
   readJsonBody,
   sha256Json,
 } from "@/infra/efi/webhooks/efi-webhook.guard";
+import { recordTeamPaymentsFromWebhook } from "@/infra/team-installments/webhook-ingest";
 import { prisma } from "@/lib/prisma";
 import { asInputJson } from "@/lib/prisma-json";
 
@@ -243,6 +244,10 @@ async function processPixWebhook(params: {
   const items = extractPixItems(payload);
 
   if (items.length > 0) {
+    // Ledger das parcelas das equipes: isolado, nunca lança e roda antes do
+    // fluxo de InitialPaymentAttempt para que uma falha lá não o impeça.
+    await recordTeamPaymentsFromWebhook(items);
+
     for (const item of items) {
       const meta = extractPixMeta(item);
 

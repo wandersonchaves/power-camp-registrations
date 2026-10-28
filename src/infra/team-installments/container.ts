@@ -28,3 +28,9 @@ export function buildTeamInstallments(client = prisma) {
     promotePayment: makePromotePayment({ uow, installmentAmountCents }),
   };
 }
+
+let singleton: ReturnType<typeof buildTeamInstallments> | null = null;
+
+export function getTeamInstallments() {
+  return (singleton ??= buildTeamInstallments());
+}
