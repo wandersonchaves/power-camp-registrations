@@ -1,6 +1,7 @@
 // src/use-cases/team-installments/ports.ts
 // Portas (Dependency Inversion): os use-cases dependem destas interfaces,
 // nunca de Prisma/Efí. Os adaptadores vivem em src/infra/team-installments.
+import type { MatrixInstallmentInput } from "@/domain/team-installments/installment-matrix";
 import type {
   AllocationPaymentStatus,
   InstallmentInput,
@@ -72,6 +73,12 @@ export interface TeamLedger {
     teamId: string,
     results: PaymentAllocationResult[],
   ): Promise<void>;
+  /** Cria o alias se ainda não existir. Retorna true se criou. */
+  createAliasIfAbsent(
+    normalizedName: string,
+    teamId: string,
+    createdBy: string | null,
+  ): Promise<boolean>;
   appendAudit(entry: AuditEntry): Promise<void>;
 }
 
@@ -110,4 +117,30 @@ export interface ReceivedPixSource {
     to: Date;
     page: number;
   }): Promise<ReceivedPixPage>;
+}
+
+export interface PaymentListRow {
+  id: string;
+  endToEndId: string;
+  txid: string | null;
+  amountCents: number;
+  paidAt: Date;
+  payerName: string | null;
+  payerDocument: string | null;
+  teamCode: string | null;
+  source: TeamPaymentSource;
+  confirmation: TeamPaymentConfirmation;
+  status: AllocationPaymentStatus;
+  attributionReason: string | null;
+  note: string | null;
+}
+
+/** Modelo de leitura da tela admin (consultas, sem regras de negócio). */
+export interface TeamInstallmentReadModel {
+  listInstallmentsWithPayment(): Promise<MatrixInstallmentInput[]>;
+  listPayments(filter: {
+    statuses?: AllocationPaymentStatus[];
+    confirmation?: TeamPaymentConfirmation;
+  }): Promise<PaymentListRow[]>;
+  findTeamIdByCode(code: string): Promise<string | null>;
 }

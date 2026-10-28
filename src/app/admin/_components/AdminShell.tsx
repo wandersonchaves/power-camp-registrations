@@ -28,6 +28,12 @@ export function AdminShell(props: { children: ReactNode }) {
               Participantes
             </Link>
             <Link
+              className="text-gray-700 hover:text-gray-900"
+              href="/admin/equipes/parcelas"
+            >
+              Parcelas
+            </Link>
+            <Link
               className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium text-gray-700 transition-colors hover:bg-blue-50 hover:text-gray-900"
               href="/admin/teams/AGUIA"
             >

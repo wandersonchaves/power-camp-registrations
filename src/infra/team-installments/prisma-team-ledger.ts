@@ -115,6 +115,18 @@ export class PrismaTeamLedger implements TeamLedger {
     }
   }
 
+  async createAliasIfAbsent(
+    normalizedName: string,
+    teamId: string,
+    createdBy: string | null,
+  ) {
+    const { count } = await this.tx.teamPayerAlias.createMany({
+      data: { normalizedName, teamId, createdBy },
+      skipDuplicates: true,
+    });
+    return count === 1;
+  }
+
   async appendAudit(entry: AuditEntry) {
     await this.tx.teamPaymentAuditLog.create({
       data: {
