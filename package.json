@@ -25,6 +25,7 @@
     "reconcile:efi:cobrs": "tsx src/scripts/reconcile-efi-payments.ts --kind=COBR",
     "reconcile:efi:cobs": "tsx src/scripts/reconcile-efi-payments.ts --kind=COB",
     "reconcile:efi:recs": "tsx src/scripts/reconcile-efi-payments.ts --kind=REC",
+    "import:team-payments": "tsx src/scripts/import-team-payments.ts",
     "reconcile:efi": "tsx src/scripts/reconcile-efi-payments.ts",
     "start": "prisma migrate deploy && next start",
     "test:deploy": "pnpm run lint:fix && pnpm run format && pnpm run build",
