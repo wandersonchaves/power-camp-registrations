@@ -194,6 +194,39 @@ export default async function TeamInstallmentsPage(props: {
         </Link>
       </div>
 
+      <details className="rounded-lg border bg-white p-4 text-sm text-gray-700">
+        <summary className="cursor-pointer font-medium text-gray-900">
+          Como usar esta tela
+        </summary>
+        <ul className="mt-3 list-disc space-y-1.5 pl-5">
+          <li>
+            <b>Equipe × mês:</b> mostra cada parcela como PAGO, ABERTO (venceu e
+            não foi paga), A VENCER ou PAGO NÃO CONFIRMADO (lançado à mão, ainda
+            sem o Pix real na Efí).
+          </li>
+          <li>
+            <b>Não atribuídos:</b> Pix de R$ 933,30 (ou múltiplos) que não
+            conseguimos ligar a uma equipe. Escolha a equipe e clique em
+            Atribuir; marque &quot;salvar nome como alias&quot; para os próximos
+            Pix desse pagador já caírem na equipe certa.
+          </li>
+          <li>
+            <b>Não confirmados:</b> quando o Pix real aparecer na Efí, cole o
+            e2eId (começa com E) e clique em Confirmar. Nada é duplicado.
+          </li>
+          <li>
+            <b>Lançamento manual:</b> use só quando o pagamento ainda não consta
+            na Efí (ex.: comprovante). Fica auditado e marcado como não
+            confirmado.
+          </li>
+          <li>
+            Pagamentos chegam sozinhos pelo webhook e pela conciliação diária.
+            Uma parcela paga por engano pode ser corrigida ajustando o
+            lançamento, nunca editando a parcela.
+          </li>
+        </ul>
+      </details>
+
       {!enabled && (
         <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-900">
           TEAM_INSTALLMENTS_ENABLED está desligado: webhook e job não estão
