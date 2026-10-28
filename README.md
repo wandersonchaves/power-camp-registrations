@@ -67,3 +67,13 @@ curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" \
 
 Add `?days=31` for a backfill (default 7, max 31). The job only calls `GET /v2/pix`
 (scope `pix.read`) and never endpoints that move money.
+
+### Day-to-day use (admin)
+
+Sign in as ADMIN and open **Parcelas** in the sidebar (`/admin/equipes/parcelas`):
+
+- _Equipe × mês_: payment status per installment, with paid / overdue / upcoming totals.
+- _Não atribuídos_: assign Pix that could not be matched to a team (optionally save the payer name as an alias).
+- _Não confirmados_: paste the real e2eId once the Pix shows up at Efí to confirm a manual entry.
+- _Lançamento manual_: register a payment that is not at Efí yet (audited, unconfirmed).
+- _Exportar CSV_: installment status per team and month.
