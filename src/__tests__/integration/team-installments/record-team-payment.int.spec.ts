@@ -289,3 +289,88 @@ function assertLocalDatabase() {
     ).toBe(1);
   });
 });
+
+(RUN ? describe : describe.skip)("atribuição manual (integração)", () => {
+  let prisma: PrismaClient;
+  let svc: ReturnType<typeof buildTeamInstallments>;
+  let leao: string;
+
+  beforeAll(async () => {
+    assertLocalDatabase();
+    prisma = new PrismaClient();
+    svc = buildTeamInstallments(prisma);
+  });
+  afterAll(async () => {
+    await prisma?.$disconnect();
+  });
+
+  it("UNATTRIBUTED vira ALLOCATED, salva alias e a próxima vez já atribui sozinho", async () => {
+    await prisma.$executeRawUnsafe(
+      `TRUNCATE "TeamPaymentAllocation","TeamPayment","TeamPayerAlias","TeamPaymentAuditLog","TeamInstallment","Team" CASCADE`,
+    );
+    const team = await prisma.team.create({
+      data: { code: "LEAO", name: "L" },
+    });
+    leao = team.id;
+    await prisma.teamInstallment.createMany({
+      data: Array.from({ length: 9 }, (_, i) => ({
+        teamId: leao,
+        dueMonth: new Date(Date.UTC(2026, 3 + i, 10)),
+        amountCents: UNIT,
+      })),
+    });
+
+    const first = await svc.recordTeamPayment({
+      endToEndId: "E-A",
+      amountCents: UNIT,
+      paidAt: new Date("2026-05-01T10:00:00Z"),
+      payerName: "Empresa Exemplo LTDA",
+      source: "WEBHOOK",
+    });
+    if (first.outcome === "SKIPPED") throw new Error("unexpected");
+    expect((await prisma.teamPayment.findFirstOrThrow()).status).toBe(
+      "UNATTRIBUTED",
+    );
+
+    const { aliasSaved } = await svc.assignPaymentToTeam({
+      paymentId: first.paymentId,
+      teamId: leao,
+      saveAlias: true,
+      userEmail: "admin@x.com",
+    });
+    expect(aliasSaved).toBe(true);
+    expect(
+      (
+        await prisma.teamPayment.findUniqueOrThrow({
+          where: { id: first.paymentId },
+        })
+      ).status,
+    ).toBe("ALLOCATED");
+    expect(await prisma.teamPaymentAllocation.count()).toBe(1);
+
+    // não pode atribuir duas vezes
+    await expect(
+      svc.assignPaymentToTeam({
+        paymentId: first.paymentId,
+        teamId: leao,
+        saveAlias: false,
+        userEmail: null,
+      }),
+    ).rejects.toThrow();
+
+    // próximo Pix do mesmo pagador cai direto na equipe pelo alias
+    await svc.recordTeamPayment({
+      endToEndId: "E-B",
+      amountCents: UNIT,
+      paidAt: new Date("2026-06-01T10:00:00Z"),
+      payerName: "EMPRESA EXEMPLO ltda",
+      source: "WEBHOOK",
+    });
+    const second = await prisma.teamPayment.findUniqueOrThrow({
+      where: { endToEndId: "E-B" },
+    });
+    expect(second).toMatchObject({ teamId: leao, status: "ALLOCATED" });
+    expect(await prisma.teamPaymentAllocation.count()).toBe(2);
+    expect(await prisma.teamPaymentAuditLog.count()).toBe(1);
+  });
+});
