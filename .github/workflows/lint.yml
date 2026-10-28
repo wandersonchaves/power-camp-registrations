@@ -5,19 +5,41 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   lint:
     name: Eslint, Typescript, prettier and test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v5
+
+      # Mesmo setup do ci.yml: o lockfile é pnpm (npm install resolvia versões
+      # diferentes e quebrava o eslint-plugin-tailwindcss).
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
       - name: Install dependencies
-        run: npm install
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: pnpm exec prisma generate
+
       - name: ESLint
-        run: npm run lint
+        run: pnpm run lint
+
       - name: Type check
-        run: npm run typecheck
+        run: pnpm run typecheck
+
       - name: Prettier
-        run: npm run format:check
+        run: pnpm run format:check
+
       - name: Tests
-        run: npm run test
+        run: pnpm run test

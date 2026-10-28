@@ -1,0 +1,11 @@
+# Carga inicial (verificada na API da Efí em 27/10/2026). Datas em UTC, derivadas do e2eId.
+# Não constam: Pix de R$ 183,00 (30/06) e R$ 366,00 (02/08) — múltiplos de 18,30 mas não de 933,30,
+# aguardam decisão dos líderes sobre pagamento parcial. O pagador do lançamento manual de 20/09
+# (comprovante) deve ser informado na hora da importação local, não versionado.
+e2eid,data,valor,equipe,pagador,origem,confirmacao,motivo
+E00000000202603201822s00000000001,2026-03-20T18:22:00Z,933.30,LEAO,,IMPORT,CONFIRMED,txid 00000001… conferido na API da Efí
+E00000000202603242340s00000000002,2026-03-24T23:40:00Z,933.30,AGUIA,,IMPORT,CONFIRMED,txid 00000002… conferido na API da Efí
+E00000000202604302143s00000000003,2026-04-30T21:43:00Z,933.30,LEAO,,IMPORT,CONFIRMED,txid 00000003… conferido na API da Efí
+E00000000202605021143s00000000004,2026-05-02T11:43:00Z,933.30,AGUIA,,IMPORT,CONFIRMED,txid 00000004… conferido na API da Efí
+E00000000202607111113s00000000005,2026-07-11T11:13:00Z,933.30,AGUIA,EMPRESA EXEMPLO LTDA,IMPORT,CONFIRMED,INFERÊNCIA: pagador EMPRESA EXEMPLO LTDA igual ao de parcelas anteriores (sem txid)
+,2026-09-20T12:00:00Z,933.30,LEAO,,MANUAL,UNCONFIRMED,só comprovante; não consta na API da Efí
