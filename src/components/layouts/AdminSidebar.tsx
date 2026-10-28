@@ -8,6 +8,7 @@ import {
   Trophy,
   Upload,
   Users,
+  Wallet,
   Zap,
 } from "lucide-react";
 import Link from "next/link";
@@ -21,6 +22,7 @@ const ADMIN_LINKS = [
   { label: "Placar Geral", href: "/admin/race", icon: Trophy },
   { label: "Participantes", href: "/admin/participants", icon: Users },
   { label: "Recorrência", href: "/admin/recurring", icon: Zap },
+  { label: "Parcelas", href: "/admin/equipes/parcelas", icon: Wallet },
   { label: "Importação", href: "/import", icon: Upload },
 ];
 

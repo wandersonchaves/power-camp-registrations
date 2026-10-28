@@ -8,6 +8,16 @@ export default function AdminHomePage() {
       <div className="grid gap-4 sm:grid-cols-2">
         <Link
           className="rounded-2xl border bg-white p-6 shadow-sm hover:bg-gray-50"
+          href="/admin/equipes/parcelas"
+        >
+          <div className="text-sm font-semibold">Parcelas das equipes</div>
+          <div className="mt-1 text-xs text-gray-600">
+            Quem pagou cada mês, Pix sem equipe e lançamento manual
+          </div>
+        </Link>
+
+        <Link
+          className="rounded-2xl border bg-white p-6 shadow-sm hover:bg-gray-50"
           href="/admin/race"
         >
           <div className="text-sm font-semibold">Placar (corrida até 50)</div>
