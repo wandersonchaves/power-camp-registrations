@@ -9,21 +9,30 @@ import {
 } from "./prisma-resolvers";
 import { PrismaTeamLedgerUnitOfWork } from "./prisma-team-ledger";
 
+import { EfiPixReceivedClient } from "@/infra/efi/pix-received.client";
 import { prisma } from "@/lib/prisma";
 import { makePromotePayment } from "@/use-cases/team-installments/promote-payment.use-case";
+import { makeReconcileTeamPayments } from "@/use-cases/team-installments/reconcile-team-payments.use-case";
 import { makeRecordTeamPayment } from "@/use-cases/team-installments/record-team-payment.use-case";
 
 export function buildTeamInstallments(client = prisma) {
   const { installmentAmountCents } = getTeamInstallmentConfig();
   const uow = new PrismaTeamLedgerUnitOfWork(client);
 
+  const recordTeamPayment = makeRecordTeamPayment({
+    uow,
+    txidTeams: new PrismaTxidTeamResolver(client),
+    aliases: new PrismaPayerAliasLookup(client),
+    installmentAmountCents,
+    newId: randomUUID,
+  });
+
   return {
-    recordTeamPayment: makeRecordTeamPayment({
-      uow,
-      txidTeams: new PrismaTxidTeamResolver(client),
-      aliases: new PrismaPayerAliasLookup(client),
+    recordTeamPayment,
+    reconcileTeamPayments: makeReconcileTeamPayments({
+      source: new EfiPixReceivedClient(),
+      recordTeamPayment,
       installmentAmountCents,
-      newId: randomUUID,
     }),
     promotePayment: makePromotePayment({ uow, installmentAmountCents }),
   };
