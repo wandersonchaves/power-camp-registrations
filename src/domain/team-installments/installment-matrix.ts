@@ -31,6 +31,14 @@ export interface TeamMatrix {
     overdueCents: number;
     upcomingCents: number;
   };
+  counts: {
+    total: number;
+    /** Parcelas quitadas (confirmadas + não confirmadas). */
+    paid: number;
+    /** Quitadas com Pix confirmado pela Efí. */
+    confirmed: number;
+    unconfirmed: number;
+  };
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -65,6 +73,7 @@ export function buildInstallmentMatrix(
           overdueCents: 0,
           upcomingCents: 0,
         },
+        counts: { total: 0, paid: 0, confirmed: 0, unconfirmed: 0 },
       };
       byTeam.set(inst.teamId, team);
     }
@@ -76,6 +85,15 @@ export function buildInstallmentMatrix(
       : isOverdue(inst.dueMonth, now)
         ? "OVERDUE"
         : "UPCOMING";
+
+    team.counts.total += 1;
+    if (state === "PAID") {
+      team.counts.paid += 1;
+      team.counts.confirmed += 1;
+    } else if (state === "PAID_UNCONFIRMED") {
+      team.counts.paid += 1;
+      team.counts.unconfirmed += 1;
+    }
 
     if (state === "PAID") team.totals.paidCents += inst.amountCents;
     else if (state === "PAID_UNCONFIRMED") {
