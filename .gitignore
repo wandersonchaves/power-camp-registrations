@@ -63,3 +63,6 @@ certs_prd/
 *.pdf
 .env*
 !.env.example
+
+# Carga inicial versionada das parcelas das equipes
+!src/scripts/data/*.csv
