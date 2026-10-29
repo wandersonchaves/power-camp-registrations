@@ -27,6 +27,29 @@ src/use-cases/      enrollment · pix-auto · webhooks · reconcile · migration
 
 Route handlers stay thin: they validate input, call a use case and map errors to HTTP responses. The business rules live in `src/use-cases`.
 
+## Status
+
+In production since February 2026 (first commit 20 Feb 2026; first enrollments 22 Feb). Numbers as of 27 Oct 2026:
+
+- **102 confirmed participants**, 51 per team, enrolled between 22 Feb and 3 Apr 2026. Another 10 sign-ups were abandoned before paying.
+- **R$ 6,533.10 confirmed in Pix**: R$ 1,866.60 from the 102 first installments (R$ 18.30 each, immediate Pix) plus R$ 4,666.50 from five team payments of R$ 933.30 confirmed through the Efí API.
+
+This is a small system. What it is meant to show is how payments are handled (idempotent webhooks, reconciliation, an auditable ledger), not volume.
+
+**Origin.** The repository was started from an earlier internal codebase (an Efí carnet app, Dec 2024), which is why the history begins in December 2024. The product itself, the Pix Automático flows and the team-installments ledger date from 2026.
+
+## Design decisions
+
+- **Persist the webhook before processing it.** Each Efí event is stored with a unique `(kind, externalId)` key, so a resent webhook cannot be applied twice.
+- **Authenticate webhooks.** Every webhook route requires `?hmac=` equal to `EFI_WEBHOOK_HMAC`, compared in constant time.
+- **Reconcile instead of trusting delivery.** Webhooks can be late or missing, so jobs and an admin endpoint compare local state with Efí. The team-payments job only calls `GET /v2/pix` (scope `pix.read`) and never an endpoint that moves money.
+- **Business rules outside route handlers.** Handlers validate input, call a use case in `src/use-cases` and map errors to HTTP.
+- **Audit trail.** Migrations of payers and team payments write audit-log rows.
+
+## Tests
+
+Unit tests (Jest) cover the webhook guard and the team-installments logic (allocation, reconciliation, webhook ingestion, Efí search, money, CSV parsing). Integration tests for recording team payments run only with `RUN_DB_TESTS=1` and a local PostgreSQL; Jest skips them otherwise. There is one Playwright end-to-end test (`pnpm e2e`). No coverage percentage is published.
+
 ## Stack
 
 Next.js 15 · React · TypeScript · Prisma · PostgreSQL · NextAuth (Google) · Efí Pix API · Tailwind CSS · shadcn/ui · Jest · Playwright
