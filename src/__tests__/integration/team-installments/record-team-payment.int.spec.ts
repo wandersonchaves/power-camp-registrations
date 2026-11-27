@@ -118,7 +118,11 @@ function assertLocalDatabase() {
     });
 
     await svc.recordTeamPayment(
-      base({ teamId: null, txid: "txid-aguia", payerName: "EMPRESA EXEMPLO LTDA" }),
+      base({
+        teamId: null,
+        txid: "txid-aguia",
+        payerName: "EMPRESA EXEMPLO LTDA",
+      }),
     );
 
     const p = await prisma.teamPayment.findFirstOrThrow();
