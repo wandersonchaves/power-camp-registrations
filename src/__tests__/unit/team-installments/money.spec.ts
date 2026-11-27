@@ -42,6 +42,8 @@ describe("normalizePayerName", () => {
     expect(normalizePayerName("  José  da Silva-LTDA. ")).toBe(
       "jose da silva ltda",
     );
-    expect(normalizePayerName("EMPRESA EXEMPLO LTDA")).toBe("empresa exemplo ltda");
+    expect(normalizePayerName("EMPRESA EXEMPLO LTDA")).toBe(
+      "empresa exemplo ltda",
+    );
   });
 });
