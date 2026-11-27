@@ -2,6 +2,8 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 
+import { apiAccessFor, isApiPath } from "@/lib/auth/api-access";
+
 const PUBLIC_FILE = /\.(.*)$/;
 
 type TokenShape = {
@@ -19,9 +21,6 @@ function isPublicPath(pathname: string) {
   ) {
     return true;
   }
-
-  // APIs (inclui nextauth + webhooks)
-  if (pathname.startsWith("/api")) return true;
 
   // arquivos públicos
   return PUBLIC_FILE.test(pathname);
@@ -54,8 +53,21 @@ function isAdminPath(pathname: string) {
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // 1) assets/apis não entram
+  // 1) assets não entram
   if (isPublicPath(pathname)) return NextResponse.next();
+
+  // 1b) APIs: fechadas por padrão (ver lib/auth/api-access.ts). Responde JSON, sem redirect.
+  if (isApiPath(pathname)) {
+    if (apiAccessFor(pathname) === "public") return NextResponse.next();
+    const apiToken = (await getToken({ req })) as TokenShape | null;
+    if (!apiToken) {
+      return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+    }
+    if (!apiToken.isActive || apiToken.role !== "ADMIN") {
+      return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+    }
+    return NextResponse.next();
+  }
 
   const token = (await getToken({ req })) as TokenShape | null;
   const role = token?.role;
